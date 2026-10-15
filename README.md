@@ -2,7 +2,7 @@
 
 Arbol Root: a component of Arbol 2.
 
-This repository is an empty scaffold created on 2026-10-05. No implementation exists yet.
+It holds the Root Contract's chat tables, `contract/1/layout.sql`, and its conformance suite, `contract/conformance/` (see its [README](contract/conformance/README.md)). The Root manager `arbol-root` is not written yet.
 
 | | |
 |---|---|
