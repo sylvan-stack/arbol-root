@@ -451,6 +451,15 @@ def r1(run: Run) -> int:
     return run.finished("completed")
 
 
+def r3_busy(run: Run) -> int:
+    """R3 "busy": the run is held open, so that the chat has an open Exchange, until the suite lets it go."""
+    run.started()
+    run.hold()
+    run.text("Done.")
+    run.usage(inputTokens=40, outputTokens=2)
+    return run.finished("completed")
+
+
 def r19(run: Run) -> int:
     """R19: the agent's run in every part, a short answer that completes."""
     run.started()
@@ -477,6 +486,7 @@ SCRIPTS: dict[str, Script] = {
     "selftest hold": selftest_hold,
     "selftest fail": selftest_fail,
     "R1": r1,
+    "R3 busy": r3_busy,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }

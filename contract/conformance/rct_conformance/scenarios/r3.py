@@ -20,7 +20,8 @@ from pathlib import Path
 from typing import IO, Any
 
 from ..home import ROOT, ROUTE, ScenarioHome, write_json
-from ..judge import check, equal, parse_line
+from ..judge import check, equal, parse_line, wait_until
+from .r1 import END_SECONDS, accepted
 
 MESSAGE = "What does build.sh do?"
 ANSWER_SECONDS = 15.0  # RCT-2: the Trunk answers within 15 seconds of its start, accepted or refused
@@ -44,6 +45,26 @@ def run(home: ScenarioHome) -> None:
         refused(home, "version", "contract_mismatch")
     finally:
         write_json(record_file, record)
+    busy_chat(home)
+    refused(home, "database away", "database_unavailable", database_away=True)
+
+
+def busy_chat(home: ScenarioHome) -> None:
+    """A second message to a chat whose Exchange is open, while the stand-in holds that Exchange's run open: refused
+    with `chat_busy`, naming the open Exchange; then the open one goes on to its end."""
+    home.part("busy")
+    first = home.start(MESSAGE)
+    chat = accepted(first)["chat"]
+    wait_until(lambda: home.events(first.exchange), END_SECONDS, "the open Exchange's first event")
+    message = refused(home, "busy", "chat_busy", request={"chat": chat})
+    check(first.exchange in message, "busy: the refusal does not name the open Exchange.", first.exchange, message)
+    home.release()
+    wait_until(lambda: first.exchange not in home.folders(hidden=True), END_SECONDS,
+               "busy: the open Exchange's folder to go")
+    equal(home.rows(f"SELECT state FROM exchanges WHERE chat_id = '{chat}'"), [{"state": "completed"}],
+          "busy: the Exchanges of the chat")
+    equal(len([record for record in home.received() if record.get("part") == "busy"]), 1,
+          "busy: the starts of the stand-in")
 
 
 def refused(home: ScenarioHome, part: str, code: str, *, message: str | None = MESSAGE,
@@ -93,6 +114,8 @@ def refused(home: ScenarioHome, part: str, code: str, *, message: str | None = M
         column = "id" if table == "exchanges" else "exchange_id"
         equal(home.rows(f"SELECT 1 AS found FROM {table} WHERE {column} = '{exchange}'"), [],
               f"{part}: the rows of the refused Exchange in {table}")
+    # A start of the stand-in records itself when it ends; one that still runs is in the Trunk's process group. In the
+    # part "busy", the open Exchange's run is held, so it has no record yet.
     equal([record for record in home.received() if record.get("part") == part], [],
           f"{part}: the starts of the stand-in")
     check(not group_alive(process.pid), f"{part}: a process of the Trunk's group lives on after the refusal.")
@@ -134,8 +157,10 @@ def ended(process: subprocess.Popen[bytes], deadline: float) -> int | None:
 
 
 def listing(folder: Path) -> list[str]:
-    """Every folder and file under `folder`, as paths relative to it."""
-    return sorted(str(path.relative_to(folder)) for path in folder.rglob("*"))
+    """The folders and files under `folder` down to the Exchange folders, `roots/<root>/exchanges/<name>`, as paths
+    relative to it; what an Exchange folder holds changes while its Exchange runs."""
+    paths = (path.relative_to(folder) for path in folder.rglob("*"))
+    return sorted(str(path) for path in paths if len(path.parts) <= 4)
 
 
 def row_counts(home: ScenarioHome) -> dict[str, Any]:
