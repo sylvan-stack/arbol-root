@@ -84,7 +84,8 @@ class StandIn(unittest.TestCase):
     def test_plays_a_script_and_records_what_it_received(self) -> None:
         """standin.plays: the script of the scenario named in <home>/standin/scenario, as a Driver writes events:
         one runId, seq from 1 without gaps, the labels on every event, text before the tool call that follows it, and
-        finished last; the record holds the arguments, the request as read, the control lines and the signals."""
+        finished last; the record holds the arguments, the request as read, the control lines, the lines it wrote and
+        the signals."""
         self.scenario("selftest plain")
         file = self.request()
         status, events = self.play(["run", "--control", "--request", file])
@@ -101,6 +102,8 @@ class StandIn(unittest.TestCase):
         self.assertRegex(events[0]["at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
         record = self.received()
         self.assertEqual(len(record), 1)
+        written = record[0].pop("events")
+        self.assertEqual([json.loads(line) for line in written], events)
         self.assertEqual(record[0], {"scenario": "selftest", "part": "plain", "launcher": "arbol-claude-driver",
                                      "arguments": ["run", "--control", "--request", file],
                                      "request": json.loads(Path(file).read_text()), "control": [], "signals": [],

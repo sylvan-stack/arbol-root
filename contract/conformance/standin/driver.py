@@ -10,7 +10,7 @@ as a Driver does. It stops as a Driver does, on a `stop` line, when its control 
 on `runs stop`: open questions close as withdrawn, running tool calls finish as interrupted, the children
 it started in process groups of their own are ended, and `finished` says `cancelled`. Every start, whatever its
 command, appends one `StandInRecord` to `<home>/standin/received.jsonl` when it ends: its arguments, the request as it
-read it, every line of its control input, and every signal it got. A run with `"tools": "none"` and no chat session,
+read it, every line of its control input, every line it wrote on its standard output, and every signal it got. A run with `"tools": "none"` and no chat session,
 such as a title, gets one `text` event, "Stand-in title", and completes, unless the scenario's script for it says
 otherwise.
 
@@ -78,6 +78,7 @@ class StandIn:
         self.scenario, _, self.part = name.partition(" ")
         self.request: Any = None
         self.control: list[Any] = []
+        self.events: list[str] = []  # every line it wrote on its standard output, without the newline (RCT-D33)
         self.signals: list[str] = []
 
     def _read_scenario(self) -> str:
@@ -90,7 +91,7 @@ class StandIn:
         """Appends this start's StandInRecord to received.jsonl, as one whole line."""
         record = {"scenario": self.scenario, "part": self.part, "launcher": self.launcher,
                   "arguments": self.arguments, "request": self.request, "control": self.control,
-                  "signals": self.signals, "workingDirectory": os.getcwd()}
+                  "events": self.events, "signals": self.signals, "workingDirectory": os.getcwd()}
         self.folder.mkdir(parents=True, exist_ok=True)
         line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8", "surrogatepass")
         descriptor = os.open(self.folder / "received.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
@@ -209,9 +210,11 @@ class Run:
             event["labels"] = self.labels
         event["type"] = kind
         event.update(fields)
+        line = json.dumps(event, ensure_ascii=False)
         try:
-            sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
+            sys.stdout.write(line + "\n")
             sys.stdout.flush()
+            self.standin.events.append(line)
         except (BrokenPipeError, OSError):
             self.broken = True
             raise Broken() from None
