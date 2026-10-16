@@ -56,8 +56,8 @@ class Cli(unittest.TestCase):
             "an unknown scenario": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R1,R99"],
                                     "Unknown scenario: R99"),
             "R16 alone": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R16"], "runs after every scenario"),
-            "a scenario not implemented yet": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R1"],
-                                               "Scenario R1 is not implemented yet."),
+            "a scenario not implemented yet": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R2"],
+                                               "Scenario R2 is not implemented yet."),
         }
         for name, (args, message) in cases.items():
             with self.subTest(name):
@@ -72,8 +72,9 @@ class Cli(unittest.TestCase):
         result = suite("--trunk", TRUNK, "--root-contract", "1")
         self.assertEqual(result.returncode, 1, result.stderr)
         lines = result.stdout.splitlines()
-        self.assertEqual(lines[0], "FAIL R1 — A plain answer in the background")
-        self.assertEqual(lines[1], "  Not implemented yet.")
+        self.assertEqual(lines[0], "FAIL R1 — A plain answer in the background")  # against a Trunk that does nothing
+        r2 = lines.index("FAIL R2 — The foreground, a failed and a cancelled one, Ctrl-C, and an output nothing reads")
+        self.assertEqual(lines[r2 + 1], "  Not implemented yet.")
         self.assertEqual(lines[-1], f"0/{len(SCENARIOS)} scenarios passed.")
         self.assertEqual([scenario.id for scenario in SCENARIOS],
                          [f"R{n}" for n in range(1, 20) if n != 16])
