@@ -132,6 +132,20 @@ class Setup(HomeTest):
         self.assertIn(exchange, home.exchanges)
         self.assertLess(started.seconds, 15)
 
+    def test_the_starter_names_another_root_when_a_scenario_asks(self) -> None:
+        """setup.starter: a scenario may start the Trunk for another Root identifier, such as `../rct`."""
+        home = self.home()
+        home.start("What does build.sh do?", root="../rct")
+        self.assertEqual(self.report(home)["arguments"][:3], ["--root", "../rct", "run"])
+
+    def test_naming_a_part_takes_back_the_release_of_a_held_run(self) -> None:
+        home = self.home()
+        home.part("busy")
+        home.release()
+        self.assertTrue((home.standin / "release").exists())
+        home.part("next")
+        self.assertFalse((home.standin / "release").exists())
+
     def test_the_trunk_gets_only_home_path_lang_and_the_tests_own_variables(self) -> None:
         """setup.environment: HOME is the home, the stand-in comes first on PATH under both launcher names, and
         ARBOL_TEST_TIME_SCALE is 10 unless a scenario says otherwise; ARBOL_TEST_HANG=1 where a scenario asks."""

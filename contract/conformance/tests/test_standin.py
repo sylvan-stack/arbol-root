@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -124,6 +125,21 @@ class StandIn(unittest.TestCase):
         self.assertEqual((events[0]["ok"], events[0]["interrupted"]), (False, True))
         self.assertEqual(events[-1]["outcome"], "cancelled")
         self.assertEqual(self.received()[0]["control"], [{"type": "stop"}])
+
+    def test_a_held_run_goes_on_once_the_suite_lets_it_go(self) -> None:
+        """standin.hold: a run held open writes no event until <home>/standin/release exists, then goes on."""
+        self.scenario("selftest hold")
+        process = self.start(["run", "--control", "--request", self.request()])
+        self.events_until(process, "started")
+        assert process.stdout is not None
+        ready, _, _ = select.select([process.stdout], [], [], 0.5)
+        self.assertEqual(ready, [])
+        (self.home / "standin" / "release").write_text("\n")
+        events = self.events_until(process, "finished")
+        assert process.stdin is not None
+        process.stdin.close()
+        self.assertEqual(process.wait(15), 0)
+        self.assertEqual([event["type"] for event in events], ["text", "finished"])
 
     def test_sigterm_stops_the_run_and_ends_its_child(self) -> None:
         """standin.sigterm: a child started in a process group of its own is ended when the stand-in gets SIGTERM,

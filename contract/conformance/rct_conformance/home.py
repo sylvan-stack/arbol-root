@@ -163,6 +163,11 @@ class ScenarioHome:
     def part(self, name: str = "") -> None:
         """Names the script the stand-in plays from now on: the scenario and its part, such as "R8 tool"."""
         (self.standin / "scenario").write_text(f"{self.scenario} {name}".strip() + "\n", encoding="utf-8")
+        (self.standin / "release").unlink(missing_ok=True)
+
+    def release(self) -> None:
+        """Lets the runs that the stand-in holds open go on (its `hold()`), until the next part is named."""
+        (self.standin / "release").write_text("\n", encoding="utf-8")
 
     def received(self) -> list[Any]:
         """The stand-in's records, one for each of its starts (RCT-4, StandInRecord)."""
@@ -186,13 +191,15 @@ class ScenarioHome:
         return env
 
     def spawn(self, args: list[str], *, cwd: Path | None = None, scale: int | None = TIME_SCALE, hang: bool = False,
-              extra: dict[str, str] | None = None, stdin: int | IO[Any] = subprocess.DEVNULL) -> subprocess.Popen[bytes]:
-        """Starts the Trunk Build's own program with `--root rct` and `args`, in a process group of its own (setsid),
-        with its standard output on a pipe and its standard error in the home's logs."""
+              extra: dict[str, str] | None = None, stdin: int | IO[Any] = subprocess.DEVNULL,
+              root: str = ROOT) -> subprocess.Popen[bytes]:
+        """Starts the Trunk Build's own program with `--root rct`, or the `root` a scenario names, and `args`, in a
+        process group of its own (setsid), with its standard output on a pipe and its standard error in the home's
+        logs."""
         self._count += 1
         stderr = (self.home / "logs" / f"trunk-{self._count}.stderr").open("wb")
         try:
-            process = subprocess.Popen([*self.trunk, "--root", ROOT, *args], cwd=cwd or self.work,
+            process = subprocess.Popen([*self.trunk, "--root", root, *args], cwd=cwd or self.work,
                                        env=self.environment(scale=scale, hang=hang, extra=extra), stdin=stdin,
                                        stdout=subprocess.PIPE, stderr=stderr, start_new_session=True)
         finally:
@@ -209,7 +216,7 @@ class ScenarioHome:
     def start(self, message: str | None = "What does build.sh do?", *, exchange: str | None = None,
               request: dict[str, Any] | None = None, options: tuple[str, ...] = (), cwd: Path | None = None,
               scale: int | None = TIME_SCALE, hang: bool = False, extra: dict[str, str] | None = None,
-              seconds: float = START_ANSWER_SECONDS) -> Started:
+              seconds: float = START_ANSWER_SECONDS, root: str = ROOT) -> Started:
         """Starts `run --detach` as `arbol-root` does (RCT-2): naming the Exchange with `--exchange` and the rest in a
         request file that names the Driver, the Subscription and the model, with standard input from /dev/null; reads
         one line, closes its end of the pipe and removes the request file."""
@@ -221,7 +228,7 @@ class ScenarioHome:
         file = self.request_file(body)
         began = time.monotonic()
         process = self.spawn(["run", "--detach", "--exchange", exchange, "--request", str(file), *options],
-                             cwd=cwd, scale=scale, hang=hang, extra=extra)
+                             cwd=cwd, scale=scale, hang=hang, extra=extra, root=root)
         assert process.stdout is not None
         line = read_line(process.stdout, seconds)
         took = time.monotonic() - began

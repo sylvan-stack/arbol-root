@@ -310,6 +310,15 @@ class Run:
         while True:
             self.silence(3600)
 
+    def hold(self) -> None:
+        """No event until the suite lets the run go on by writing `<home>/standin/release`, while control lines and
+        signals are still taken."""
+        release = self.standin.folder / "release"
+        while not release.exists():
+            self.poll(0.05)
+            if self.stopping:
+                raise Stopped()
+
     def child(self, seconds: float = 3600) -> int:
         """Starts a child in a process group of its own, as a Driver starts its vendor tool, and names it in
         `<home>/standin/children.jsonl` so that the suite can make sure it is gone."""
@@ -414,6 +423,14 @@ def selftest_ask(run: Run) -> int:
     return run.finished("completed")
 
 
+def selftest_hold(run: Run) -> int:
+    """Holds the run open until the suite lets it go, then completes."""
+    run.started()
+    run.hold()
+    run.text("Let go.")
+    return run.finished("completed")
+
+
 def selftest_fail(run: Run) -> int:
     """Fails with a rate limit and a time to wait."""
     run.started()
@@ -457,6 +474,7 @@ SCRIPTS: dict[str, Script] = {
     "selftest stop": selftest_stop,
     "selftest child": selftest_child,
     "selftest ask": selftest_ask,
+    "selftest hold": selftest_hold,
     "selftest fail": selftest_fail,
     "R1": r1,
     "R19": r19,
