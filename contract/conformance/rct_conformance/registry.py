@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .home import ScenarioHome
+from .scenarios import r1
 
 
 @dataclass(frozen=True)
@@ -26,7 +27,7 @@ AFTER_EVERY_SCENARIO = "R16"
 
 SCENARIOS: list[Scenario] = [
     Scenario("R1", "A plain answer in the background",
-             ("RCT-0.4", "0.6", "0.14", "1.1", "1.2", "1.5", "2.1", "2.4", "2.9", "2.20", "3.1", "3.2", "3.3")),
+             ("RCT-0.4", "0.6", "0.14", "1.1", "1.2", "1.5", "2.1", "2.4", "2.9", "2.20", "3.1", "3.2", "3.3"), r1.run),
     Scenario("R2", "The foreground, a failed and a cancelled one, Ctrl-C, and an output nothing reads",
              ("RCT-2.5", "2.8", "2.19")),
     Scenario("R3", "Refusals", ("RCT-0.3", "0.5", "2.2", "2.13", "2.17")),

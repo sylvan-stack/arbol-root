@@ -422,6 +422,18 @@ def selftest_fail(run: Run) -> int:
                                          "retryAfterSeconds": 1800})
 
 
+def r1(run: Run) -> int:
+    """R1: a plain answer. A pause first, in which the suite looks at the folder and the tables of the open Exchange;
+    then text, a shell call, more text and usage, and the run completes."""
+    run.started()
+    run.silence(30)
+    run.text("Let me read it.", deltas=("Let me ", "read it."))
+    run.shell("cat build.sh", "#!/bin/sh\nset -e\nmake all\n")
+    run.text("It compiles the three packages and copies them to dist/.")
+    run.usage(inputTokens=5120, outputTokens=812)
+    return run.finished("completed")
+
+
 # A script by the scenario and its part, such as "R8 tool", or by the scenario alone. "<scenario> small" (or
 # "<scenario> <part> small") is the script of a run with no tools and no chat session; without one, `title`.
 SCRIPTS: dict[str, Script] = {
@@ -430,6 +442,7 @@ SCRIPTS: dict[str, Script] = {
     "selftest child": selftest_child,
     "selftest ask": selftest_ask,
     "selftest fail": selftest_fail,
+    "R1": r1,
 }
 
 

@@ -288,6 +288,11 @@ class ScenarioHome:
         """The whole lines of the Exchange's `events.jsonl`."""
         return json_lines(self.exchanges_folder / exchange / "events.jsonl")
 
+    def follow(self, exchange: str) -> Follow:
+        """Keeps the Exchange's `events.jsonl` open from now on, so that its lines can be read after the Trunk has
+        removed the folder."""
+        return Follow((self.exchanges_folder / exchange / "events.jsonl").open("rb"))
+
     def control(self, exchange: str, line: dict[str, Any]) -> None:
         """Appends one line to the Exchange's `control`, as the Root manager and the backend write it (RCT-1.8)."""
         data = (json.dumps(line, separators=(",", ":")) + "\n").encode("utf-8")
@@ -308,6 +313,30 @@ class ScenarioHome:
         if not self.server.running():
             self.server.start()
         no_table_changed(self.server, DATABASE, self.layout, self.exchanges, self.chats)
+
+
+class Follow:
+    """An Exchange's `events.jsonl`, held open: what it holds, also once its folder is gone."""
+
+    def __init__(self, stream: IO[bytes]) -> None:
+        self.stream = stream
+        self.data = b""
+
+    def lines(self) -> list[Any]:
+        """The whole lines so far; a last line without a newline is unfinished and skipped (RCT-1.9)."""
+        self.data += self.stream.read()
+        return [parse_events_line(raw) for raw in self.data.split(b"\n")[:-1]]
+
+    def close(self) -> None:
+        self.stream.close()
+
+
+def parse_events_line(raw: bytes) -> Any:
+    text = raw.decode("utf-8", "surrogateescape")
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text
 
 
 def write_json(path: Path, value: Any) -> None:
