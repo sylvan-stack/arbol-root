@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .home import ScenarioHome
-from .scenarios import r1
+from .scenarios import r1, r19
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("R15", "Size limits", ("RCT-1.6", "1.12")),
     Scenario("R17", "Characters PostgreSQL cannot store", ("RCT-3.10",)),
     Scenario("R18", "A Driver that falls silent", ("RCT-2.21",)),
-    Scenario("R19", "Small calls", ("RCT-1.11", "2.22")),
+    Scenario("R19", "Small calls", ("RCT-1.11", "2.22"), r19.run),
 ]
 
 

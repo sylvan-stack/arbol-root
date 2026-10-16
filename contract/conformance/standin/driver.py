@@ -434,6 +434,22 @@ def r1(run: Run) -> int:
     return run.finished("completed")
 
 
+def r19(run: Run) -> int:
+    """R19: the agent's run in every part, a short answer that completes."""
+    run.started()
+    run.text("A short answer.")
+    run.usage(inputTokens=40, outputTokens=4)
+    return run.finished("completed")
+
+
+def r19_small_fails(run: Run) -> int:
+    """R19 "fails": a small call, such as a title, that fails with a rate limit."""
+    run.started()
+    run.usage(inputTokens=12)
+    return run.finished("failed", error={"code": "rate_limited", "message": "Rate limited.", "retryable": True,
+                                         "retryAfterSeconds": 60})
+
+
 # A script by the scenario and its part, such as "R8 tool", or by the scenario alone. "<scenario> small" (or
 # "<scenario> <part> small") is the script of a run with no tools and no chat session; without one, `title`.
 SCRIPTS: dict[str, Script] = {
@@ -443,6 +459,8 @@ SCRIPTS: dict[str, Script] = {
     "selftest ask": selftest_ask,
     "selftest fail": selftest_fail,
     "R1": r1,
+    "R19": r19,
+    "R19 fails small": r19_small_fails,
 }
 
 
