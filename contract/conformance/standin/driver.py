@@ -519,6 +519,15 @@ def r8_ask(run: Run) -> int:
     return run.finished("completed")
 
 
+def r9(run: Run) -> int:
+    """R9: a question to the Leather Bag; once it has its answer, the run goes on and completes."""
+    run.started()
+    answer = run.ask(BRANCH_QUESTION)
+    run.text(f"Answered: {json.dumps(answer)}")
+    run.usage(inputTokens=60, outputTokens=8)
+    return run.finished("completed")
+
+
 def r19(run: Run) -> int:
     """R19: the agent's run in every part, a short answer that completes."""
     run.started()
@@ -553,6 +562,7 @@ SCRIPTS: dict[str, Script] = {
     "R8 text": r8_text,
     "R8 tool": r8_tool,
     "R8 ask": r8_ask,
+    "R9": r9,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
