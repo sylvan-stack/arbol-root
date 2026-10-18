@@ -508,6 +508,17 @@ def r8_tool(run: Run) -> int:
     run.wait_for_stop()
 
 
+BRANCH_QUESTION = [{"id": "branch", "question": "Which branch should I push to?", "multiple": False,
+                    "options": [{"label": "main"}, {"label": "dev"}]}]
+
+
+def r8_ask(run: Run) -> int:
+    """R8 "ask": a question to the Leather Bag that stays open until the run is stopped."""
+    run.started()
+    run.ask(BRANCH_QUESTION)
+    return run.finished("completed")
+
+
 def r19(run: Run) -> int:
     """R19: the agent's run in every part, a short answer that completes."""
     run.started()
@@ -541,6 +552,7 @@ SCRIPTS: dict[str, Script] = {
     "R5 together": r5_together,
     "R8 text": r8_text,
     "R8 tool": r8_tool,
+    "R8 ask": r8_ask,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }

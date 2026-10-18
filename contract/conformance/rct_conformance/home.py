@@ -327,7 +327,7 @@ class ScenarioHome:
 
     def acceptances_held(self) -> Held:
         """Holds every acceptance until the hold is released: a lock on `chats` that lets rows be read and none be
-        written, so that an acceptance's transaction waits at its first statement."""
+        written, so that an acceptance's transaction waits at its first statement (RCT-D35)."""
         return self.server.hold(DATABASE, "LOCK TABLE chats IN SHARE MODE")
 
     def no_table_changed(self) -> None:

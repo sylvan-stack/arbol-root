@@ -11,10 +11,11 @@ Covers RCT-1.7 and 2.7.
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import Callable
 from typing import Any
 
-from ..home import TIME_SCALE, ScenarioHome
+from ..home import TIME_SCALE, Follow, ScenarioHome
 from ..judge import check, equal, wait_until
 from .r1 import END_SECONDS, accepted
 
@@ -22,6 +23,7 @@ MESSAGE = "Build the packages."
 STOP = {"type": "stop"}
 STOP_SECONDS = 18.0 / TIME_SCALE  # RCT-2.7: the end is in the folder within 18 seconds of the stop line, divided
 INTERRUPTED = {"ok": False, "interrupted": True}
+WRITER_SECONDS = 15.0  # RCT-1.8: how long a writer waits for the folder to be in place
 
 
 def run(home: ScenarioHome) -> None:
@@ -29,6 +31,57 @@ def run(home: ScenarioHome) -> None:
     calls = stopped(home, "tool", lambda events: any(e.get("type") == "tool_started" for e in events))
     equal([{key: call[key] for key in ("name", "ok", "interrupted")} for call in calls],
           [{"name": "shell", **INTERRUPTED}], "tool: the shell call that was running")
+    asks: list[Any] = []
+
+    def asked(events: list[dict[str, Any]]) -> bool:
+        asks[:] = [event["ask"] for event in events if event.get("type") == "ask_opened"]
+        return bool(asks)
+
+    calls = stopped(home, "ask", asked)
+    equal(calls, [{"name": "ask_user", **INTERRUPTED, "ask": asks[0], "answer": None}],
+          "ask: the question that was open")
+    early(home)
+
+
+def early(home: ScenarioHome) -> None:
+    """A stop line written from the moment the Trunk is started, as a writer that finds the folder under its dot
+    name waits for it to be in place (RCT-1.8), while every acceptance is held, so that the line is in `control`
+    before the Trunk could start its run (RCT-D35): no run starts, and the Exchange ends as cancelled."""
+    home.part("early")
+    exchange = str(uuid.uuid4())
+    control = home.exchanges_folder / exchange / "control"
+    follows: list[Follow] = []
+    written: list[float] = []
+    with home.acceptances_held() as held:
+        def meanwhile() -> None:
+            wait_until(control.exists, WRITER_SECONDS, "early: the Exchange's control in place", every=0.005)
+            follows.append(home.follow(exchange))
+            home.control(exchange, STOP)
+            written.append(time.monotonic())
+            held.release()
+
+        started = home.start(MESSAGE, exchange=exchange, meanwhile=meanwhile)
+    accepted(started)
+    try:
+        lines = wait_until(lambda: ended(follows[0]), END_SECONDS, "early: the end in the folder", every=0.01)
+        took = time.monotonic() - written[0]
+    finally:
+        follows[0].close()
+    equal([line.get("end", {}).get("state") for line in lines], ["cancelled"], "early: the lines of events.jsonl")
+    check(took <= STOP_SECONDS, f"early: the end came {took:.2f} s after the stop line.",
+          f"within {STOP_SECONDS:g} s", round(took, 2))
+    wait_until(lambda: exchange not in home.folders(hidden=True), END_SECONDS, "early: the folder to go")
+    equal([record for record in home.received() if record.get("part") == "early"], [],
+          "early: the starts of the stand-in")
+    equal(home.rows(f"SELECT state, error FROM exchanges WHERE id = '{exchange}'"),
+          [{"state": "cancelled", "error": None}], "early: the Exchange")
+    equal(home.rows(f"SELECT run_id FROM runs WHERE exchange_id = '{exchange}'"), [], "early: the runs")
+
+
+def ended(follow: Follow) -> list[Any] | None:
+    """The lines of `events.jsonl` once its last line is the end."""
+    found = follow.lines()
+    return found if found and isinstance(found[-1], dict) and "end" in found[-1] else None
 
 
 def stopped(home: ScenarioHome, part: str, ready: Callable[[list[dict[str, Any]]], bool]) -> list[dict[str, Any]]:
@@ -42,14 +95,9 @@ def stopped(home: ScenarioHome, part: str, ready: Callable[[list[dict[str, Any]]
     try:
         wait_until(lambda: ready([line["event"] for line in home.events(exchange) if "event" in line]), END_SECONDS,
                    f"{part}: the moment to stop")
-
-        def ended() -> list[Any] | None:
-            found = follow.lines()
-            return found if found and isinstance(found[-1], dict) and "end" in found[-1] else None
-
         home.control(exchange, STOP)
         written = time.monotonic()
-        lines = wait_until(ended, END_SECONDS, f"{part}: the end in the folder", every=0.01)
+        lines = wait_until(lambda: ended(follow), END_SECONDS, f"{part}: the end in the folder", every=0.01)
         took = time.monotonic() - written
     finally:
         follow.close()
