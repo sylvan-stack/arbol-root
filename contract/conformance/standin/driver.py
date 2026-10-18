@@ -491,6 +491,23 @@ def r5_together(run: Run) -> int:
     return run.finished("completed")
 
 
+def r8_text(run: Run) -> int:
+    """R8 "text": text streams, a fragment every second (divided), until the run is stopped."""
+    run.started()
+    run.produced = True
+    while True:
+        run.event("text_delta", text="More of the answer. ")
+        run.silence(1)
+
+
+def r8_tool(run: Run) -> int:
+    """R8 "tool": text, then a shell call that runs until the run is stopped."""
+    run.started()
+    run.text("Let me build it.")
+    run.open_tool("shell", {"command": "make"})
+    run.wait_for_stop()
+
+
 def r19(run: Run) -> int:
     """R19: the agent's run in every part, a short answer that completes."""
     run.started()
@@ -522,6 +539,8 @@ SCRIPTS: dict[str, Script] = {
     "R5 fails": r5_fails,
     "R5 stopped": r5_stopped,
     "R5 together": r5_together,
+    "R8 text": r8_text,
+    "R8 tool": r8_tool,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
