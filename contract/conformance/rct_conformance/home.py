@@ -25,15 +25,17 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
 from .judge import json_lines, parse_line
-from .postgres import Server
+from .postgres import Held, Server
 from .tables import Catalog, catalog, no_table_changed
 
 STANDIN = Path(__file__).resolve().parents[1] / "standin" / "driver.py"
@@ -88,6 +90,7 @@ class ScenarioHome:
     exchanges: set[str] = field(default_factory=set)
     chats: set[str] = field(default_factory=set)
     _count: int = 0
+    _counting: threading.Lock = field(default_factory=threading.Lock)  # starts may run from several threads at once
 
     # Making and removing ---------------------------------------------------------------------------------------------
 
@@ -196,8 +199,7 @@ class ScenarioHome:
         """Starts the Trunk Build's own program with `--root rct`, or the `root` a scenario names, and `args`, in a
         process group of its own (setsid), with its standard output on a pipe and its standard error in the home's
         logs."""
-        self._count += 1
-        stderr = (self.home / "logs" / f"trunk-{self._count}.stderr").open("wb")
+        stderr = (self.home / "logs" / f"trunk-{self._next()}.stderr").open("wb")
         try:
             process = subprocess.Popen([*self.trunk, "--root", root, *args], cwd=cwd or self.work,
                                        env=self.environment(scale=scale, hang=hang, extra=extra), stdin=stdin,
@@ -207,19 +209,25 @@ class ScenarioHome:
         self.processes.append(process)
         return process
 
+    def _next(self) -> int:
+        with self._counting:
+            self._count += 1
+            return self._count
+
     def request_file(self, request: dict[str, Any]) -> Path:
-        self._count += 1
-        file = self.home / "requests" / f"start-{self._count}.json"
+        file = self.home / "requests" / f"start-{self._next()}.json"
         write_json(file, request)
         return file
 
     def start(self, message: str | None = "What does build.sh do?", *, exchange: str | None = None,
               request: dict[str, Any] | None = None, options: tuple[str, ...] = (), cwd: Path | None = None,
               scale: int | None = TIME_SCALE, hang: bool = False, extra: dict[str, str] | None = None,
-              seconds: float = START_ANSWER_SECONDS, root: str = ROOT) -> Started:
+              seconds: float = START_ANSWER_SECONDS, root: str = ROOT,
+              meanwhile: Callable[[], None] | None = None) -> Started:
         """Starts `run --detach` as `arbol-root` does (RCT-2): naming the Exchange with `--exchange` and the rest in a
         request file that names the Driver, the Subscription and the model, with standard input from /dev/null; reads
-        one line, closes its end of the pipe and removes the request file."""
+        one line, closes its end of the pipe and removes the request file. `meanwhile` runs once the Trunk is started
+        and before its line is read. Starts may run from several threads at once."""
         exchange = exchange or str(uuid.uuid4())
         body: dict[str, Any] = {"route": dict(ROUTE)}
         if message is not None:
@@ -230,6 +238,8 @@ class ScenarioHome:
         process = self.spawn(["run", "--detach", "--exchange", exchange, "--request", str(file), *options],
                              cwd=cwd, scale=scale, hang=hang, extra=extra, root=root)
         assert process.stdout is not None
+        if meanwhile is not None:
+            meanwhile()
         line = read_line(process.stdout, seconds)
         took = time.monotonic() - began
         process.stdout.close()
@@ -314,6 +324,11 @@ class ScenarioHome:
     def rows(self, query: str) -> list[dict[str, Any]]:
         """The rows of a query on the scenario's database, read with psql."""
         return self.server.rows(DATABASE, query)
+
+    def acceptances_held(self) -> Held:
+        """Holds every acceptance until the hold is released: a lock on `chats` that lets rows be read and none be
+        written, so that an acceptance's transaction waits at its first statement."""
+        return self.server.hold(DATABASE, "LOCK TABLE chats IN SHARE MODE")
 
     def no_table_changed(self) -> None:
         """R16, after the scenario."""
