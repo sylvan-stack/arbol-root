@@ -11,6 +11,7 @@ import subprocess
 import time
 import unittest
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 from unittest import mock
@@ -195,6 +196,40 @@ class Setup(HomeTest):
         events = [json.loads(line) for line in (home.home / "fake-standin.jsonl").read_text().splitlines()]
         self.assertEqual(events[-1]["type"], "finished")
         self.assertEqual(events[-1]["outcome"], "completed")
+
+
+class Starts(HomeTest):
+    def test_starts_from_several_threads_at_once_each_get_files_of_their_own(self) -> None:
+        """setup.threads: request files made from several threads at once never share a name."""
+        home = self.home()
+        with ThreadPoolExecutor(8) as pool:
+            files = list(pool.map(lambda _i: home.request_file({}), range(200)))
+        self.assertEqual(len(set(files)), 200)
+
+    def test_meanwhile_runs_once_the_trunk_is_started_and_before_its_line_is_read(self) -> None:
+        """setup.meanwhile: start() runs its meanwhile with the Trunk's process started and its line not read yet."""
+        home = self.home()
+        seen: list[bool] = []
+        started = home.start(extra=self.mode("report"), meanwhile=lambda: seen.append(bool(home.processes)))
+        self.assertEqual(seen, [True])
+        self.assertTrue(started.answer["accepted"])
+
+    def test_held_acceptances_wait_until_the_hold_is_released_and_rows_can_be_read_meanwhile(self) -> None:
+        """setup.hold: while acceptances are held, a Trunk's insert into chats waits and the tables can be read; once
+        the hold is released, the acceptance goes on."""
+        home = self.home()
+        counted: list[Any] = []
+        with home.acceptances_held() as held:
+            def meanwhile() -> None:
+                time.sleep(0.5)
+                counted.append(home.rows("SELECT count(*) AS n FROM chats")[0]["n"])
+                held.release()
+
+            started = home.start(extra=self.mode("accept"), meanwhile=meanwhile)
+        self.assertEqual(counted, [0])
+        self.assertGreater(started.seconds, 0.5)
+        self.assertTrue(started.answer["accepted"])
+        self.assertEqual(home.rows("SELECT count(*) AS n FROM chats"), [{"n": 1}])
 
 
 class R16(HomeTest):

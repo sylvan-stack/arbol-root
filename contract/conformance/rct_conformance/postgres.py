@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import select
 import shutil
 import signal
 import subprocess
@@ -158,6 +159,23 @@ class Server:
         assert isinstance(rows, list)
         return rows
 
+    def hold(self, database: str, statement: str, *, seconds: float = 30) -> Held:
+        """Runs `statement`, such as a LOCK TABLE, in a transaction of a session of its own that stays open until the
+        hold is released; it gives the hold once the server has granted the statement."""
+        process = subprocess.Popen([self.tools["psql"], "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet",
+                                    "--no-align", "--tuples-only", "--file", "-", self.url(database)],
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                   env=_environment(self.home), cwd=self.home)
+        held = Held(process)
+        assert process.stdin is not None and process.stdout is not None
+        process.stdin.write(f"BEGIN;\n{statement};\nSELECT 'held';\n")
+        process.stdin.flush()
+        ready, _, _ = select.select([process.stdout], [], [], seconds)
+        if not ready or process.stdout.readline().strip() != "held":
+            held.release()
+            raise RuntimeError(f"The server did not grant {statement!r} within {seconds:g} s.")
+        return held
+
     def remove(self) -> None:
         """Stops the server, also one that does not answer, and removes its data and socket folders."""
         if self.data.is_dir() and self.running():
@@ -171,6 +189,36 @@ class Server:
         shutil.rmtree(self.data, ignore_errors=True)
         self.log.unlink(missing_ok=True)
         shutil.rmtree(self.socket_folder, ignore_errors=True)
+
+
+class Held:
+    """A statement held in an open transaction by a psql session of its own, until `release` commits it. It is also a
+    context manager that releases it at the end of its block."""
+
+    def __init__(self, process: subprocess.Popen[str]) -> None:
+        self.process = process
+
+    def release(self) -> None:
+        """Commits the transaction and ends the session; releasing twice changes nothing."""
+        if self.process.returncode is not None:
+            return
+        try:
+            assert self.process.stdin is not None
+            self.process.stdin.write("COMMIT;\n")
+            self.process.stdin.close()
+            self.process.wait(10)
+        except (OSError, subprocess.TimeoutExpired):
+            self.process.kill()
+            self.process.wait()
+        for stream in (self.process.stdout, self.process.stderr):
+            if stream is not None:
+                stream.close()
+
+    def __enter__(self) -> Held:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.release()
 
 
 def _kill_postmaster(pid: int) -> None:
