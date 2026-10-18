@@ -460,6 +460,37 @@ def r3_busy(run: Run) -> int:
     return run.finished("completed")
 
 
+def r5(run: Run) -> int:
+    """R5: a short answer that completes."""
+    run.started()
+    run.text("A short answer.")
+    run.usage(inputTokens=40, outputTokens=4)
+    return run.finished("completed")
+
+
+def r5_fails(run: Run) -> int:
+    """R5 "fails": the run fails with a rate limit."""
+    run.started()
+    run.usage(inputTokens=40)
+    return run.finished("failed", error={"code": "rate_limited", "message": "Rate limited.", "retryable": True,
+                                         "retryAfterSeconds": 60})
+
+
+def r5_stopped(run: Run) -> int:
+    """R5 "stopped": text, then nothing until the run is stopped."""
+    run.started()
+    run.text("Working on it.")
+    run.wait_for_stop()
+
+
+def r5_together(run: Run) -> int:
+    """R5 "together": the run is held open, so that the chat's Exchange stays open, until the suite lets it go."""
+    run.started()
+    run.hold()
+    run.text("Done.")
+    return run.finished("completed")
+
+
 def r19(run: Run) -> int:
     """R19: the agent's run in every part, a short answer that completes."""
     run.started()
@@ -487,6 +518,10 @@ SCRIPTS: dict[str, Script] = {
     "selftest fail": selftest_fail,
     "R1": r1,
     "R3 busy": r3_busy,
+    "R5": r5,
+    "R5 fails": r5_fails,
+    "R5 stopped": r5_stopped,
+    "R5 together": r5_together,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
