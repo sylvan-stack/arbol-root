@@ -702,6 +702,14 @@ def main(argv: list[str]) -> int:
             return command_runs_stop(standin, args[2])
         if args == ["info"]:
             return command_info(standin, build)
+        if args == ["subscriptions", "families"]:
+            family = "chatgpt" if "codex" in standin.launcher else "anthropic"
+            print(json.dumps([{"id": family, "auth": "vendor_login"}]))
+            return 0
+        if args == ["subscriptions", "list"]:
+            family = "chatgpt" if "codex" in standin.launcher else "anthropic"
+            print(json.dumps([{"id": "standin", "family": family}, {"id": family, "family": family}]))
+            return 0
         refuse("invalid_input", f"Unknown command: {' '.join(args) or '(none)'}")
     finally:
         standin.record()

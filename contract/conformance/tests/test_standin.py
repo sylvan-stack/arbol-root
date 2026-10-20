@@ -227,6 +227,17 @@ class StandIn(unittest.TestCase):
         self.assertEqual(self.received()[0]["arguments"], ["-v", "7", "info"])
         self.assertEqual(self.received()[0]["launcher"], "arbol-codex-driver")
 
+    def test_capabilities_offer_the_selected_subscription_without_a_run(self) -> None:
+        for command, expected in (
+            (["subscriptions", "families"], [{"id": "anthropic", "auth": "vendor_login"}]),
+            (["subscriptions", "list"], [{"id": "standin", "family": "anthropic"},
+                                        {"id": "anthropic", "family": "anthropic"}]),
+        ):
+            process = self.start(command)
+            output, _ = process.communicate(timeout=30)
+            self.assertEqual(process.returncode, 0)
+            self.assertEqual(json.loads(output), expected)
+
     def test_runs_stop_stops_a_run_from_another_invocation(self) -> None:
         """standin.runs-stop: `runs stop <run>` stops the run of that identifier; an unknown run is no error."""
         self.scenario("selftest stop")

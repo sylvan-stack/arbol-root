@@ -172,9 +172,13 @@ class ScenarioHome:
         """Lets the runs that the stand-in holds open go on (its `hold()`), until the next part is named."""
         (self.standin / "release").write_text("\n", encoding="utf-8")
 
-    def received(self) -> list[Any]:
-        """The stand-in's records, one for each of its starts (RCT-4, StandInRecord)."""
-        return json_lines(self.standin / "received.jsonl")
+    def received(self, *, include_queries: bool = False) -> list[Any]:
+        """Inference/control records; capability-query records remain available in the raw log."""
+        records = json_lines(self.standin / "received.jsonl")
+        if include_queries:
+            return records
+        return [record for record in records if record["arguments"] not in
+                (["info"], ["subscriptions", "families"], ["subscriptions", "list"])]
 
     def children(self) -> list[int]:
         """The children the stand-in started in process groups of their own."""
