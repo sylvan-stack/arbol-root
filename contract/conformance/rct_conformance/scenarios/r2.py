@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import uuid
 
 from ..home import ROUTE, ScenarioHome
 from ..judge import check, equal, parse_line, wait_until
 from .r1 import END_SECONDS, MESSAGE, accepted
+
+
+def run(home: ScenarioHome) -> None:
+    foreground(home)
+    unread(home)
+    interrupt(home)
 
 
 def foreground(home: ScenarioHome) -> None:
@@ -56,3 +64,25 @@ def unread(home: ScenarioHome) -> None:
     equal(lines[-1].get("end", {}).get("state"), "completed", "unread: the file's end")
     equal(home.rows(f"SELECT state FROM exchanges WHERE id = '{exchange}'"),
           [{"state": "completed"}], "unread: the saved Exchange")
+
+
+def interrupt(home: ScenarioHome) -> None:
+    home.part("interrupt")
+    started = home.start(MESSAGE, detach=False)
+    accepted(started)
+    exchange = started.exchange
+    wait_until(lambda: any(line.get("event", {}).get("type") == "tool_started" for line in home.events(exchange)),
+               END_SECONDS, "Ctrl-C: the running tool call")
+    os.killpg(started.process.pid, signal.SIGINT)
+    started.process.wait(timeout=END_SECONDS)
+    assert started.process.stdout is not None
+    started.process.stdout.close()
+    check(exchange in home.folders(), "Ctrl-C removed the Exchange's folder before settling.")
+    check("end" not in home.record(exchange), "Ctrl-C wrote an end in the record.")
+    check(all("end" not in line for line in home.events(exchange)), "Ctrl-C wrote an end in events.jsonl.")
+    settled = home.run(["settle", exchange])
+    equal(settled.status, 0, "Ctrl-C: the settle exit status")
+    equal(settled.output, [{"exchange": exchange, "settled": "interrupted"}], "Ctrl-C: the settle answer")
+    equal(home.rows(f"SELECT state FROM exchanges WHERE id = '{exchange}'"),
+          [{"state": "interrupted"}], "Ctrl-C: the saved Exchange")
+    check(exchange not in home.folders(hidden=True), "Ctrl-C: the settled folder remains.")
