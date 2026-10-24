@@ -227,7 +227,7 @@ class ScenarioHome:
               request: dict[str, Any] | None = None, options: tuple[str, ...] = (), cwd: Path | None = None,
               scale: int | None = TIME_SCALE, hang: bool = False, extra: dict[str, str] | None = None,
               seconds: float = START_ANSWER_SECONDS, root: str = ROOT,
-              meanwhile: Callable[[], None] | None = None) -> Started:
+              meanwhile: Callable[[], None] | None = None, detach: bool = True) -> Started:
         """Starts `run --detach` as `arbol-root` does (RCT-2): naming the Exchange with `--exchange` and the rest in a
         request file that names the Driver, the Subscription and the model, with standard input from /dev/null; reads
         one line, closes its end of the pipe and removes the request file. `meanwhile` runs once the Trunk is started
@@ -239,14 +239,16 @@ class ScenarioHome:
         body.update(request or {})
         file = self.request_file(body)
         began = time.monotonic()
-        process = self.spawn(["run", "--detach", "--exchange", exchange, "--request", str(file), *options],
+        process = self.spawn(["run", *(["--detach"] if detach else []), "--exchange", exchange,
+                              "--request", str(file), *options],
                              cwd=cwd, scale=scale, hang=hang, extra=extra, root=root)
         assert process.stdout is not None
         if meanwhile is not None:
             meanwhile()
         line = read_line(process.stdout, seconds)
         took = time.monotonic() - began
-        process.stdout.close()
+        if detach:
+            process.stdout.close()
         file.unlink(missing_ok=True)
         answer = parse_line(line)
         self._note(answer)
@@ -395,7 +397,7 @@ def read_line(stream: IO[bytes], seconds: float) -> str | None:
         ready, _, _ = select.select([descriptor], [], [], remaining)
         if not ready:
             continue
-        chunk = os.read(descriptor, 65536)
+        chunk = os.read(descriptor, 1)  # foreground readers keep every byte after the acceptance line
         if not chunk:
             return None
         data += chunk

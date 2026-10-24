@@ -199,6 +199,16 @@ class Setup(HomeTest):
 
 
 class Starts(HomeTest):
+    def test_a_foreground_start_keeps_the_pipe_and_the_lines_after_acceptance(self) -> None:
+        home = self.home()
+        started = home.start(detach=False, extra=self.mode("foreground"))
+        assert started.process.stdout is not None
+        self.assertFalse(started.process.stdout.closed)
+        output, _ = started.process.communicate(timeout=10)
+        self.assertEqual(json.loads(output)["event"]["text"], "kept after acceptance")
+        report = json.loads((home.home / "fake-trunk.json").read_text())
+        self.assertNotIn("--detach", report["arguments"])
+
     def test_starts_from_several_threads_at_once_each_get_files_of_their_own(self) -> None:
         """setup.threads: request files made from several threads at once never share a name."""
         home = self.home()

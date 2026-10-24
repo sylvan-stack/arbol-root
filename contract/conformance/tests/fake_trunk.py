@@ -86,6 +86,8 @@ def main(args: list[str]) -> int:
             standin.wait(60)
     print(json.dumps({"accepted": True, "duplicate": False, "root": "rct", "exchange": exchange, "chat": chat,
                       "number": 1, "trunk": "fake", "build": "0"}), flush=True)
+    if mode == "foreground":
+        print('{"n":1,"event":{"type":"text","text":"kept after acceptance"}}', flush=True)
     if mode == "linger":
         subprocess.Popen(["/bin/sleep", "3600"])
         time.sleep(3600)
