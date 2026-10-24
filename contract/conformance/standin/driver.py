@@ -556,6 +556,15 @@ def r19(run: Run) -> int:
     return run.finished("completed")
 
 
+def r10(run: Run) -> int:
+    run.started()
+    run.text("Before the signal.")
+    run.usage(inputTokens=40, outputTokens=4)
+    run.child()
+    run.open_tool("shell", {"command": "make"})
+    run.wait_for_stop()
+
+
 def r19_small_fails(run: Run) -> int:
     """R19 "fails": a small call, such as a title, that fails with a rate limit."""
     run.started()
@@ -586,6 +595,7 @@ SCRIPTS: dict[str, Script] = {
     "R8 tool": r8_tool,
     "R8 ask": r8_ask,
     "R9": r9,
+    "R10": r10,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
