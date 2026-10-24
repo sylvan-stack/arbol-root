@@ -460,6 +460,26 @@ def r3_busy(run: Run) -> int:
     return run.finished("completed")
 
 
+def r2(run: Run) -> int:
+    """R2: keep the folder available until its reader opens it, then end with the requested outcome."""
+    run.started()
+    run.hold()
+    run.text("A foreground answer.")
+    run.usage(inputTokens=40, outputTokens=4)
+    outcome = run.standin.part if run.standin.part in ("failed", "cancelled") else "completed"
+    error = {"code": "rate_limited", "message": "Rate limited.", "retryable": True} if outcome == "failed" else None
+    return run.finished(outcome, error=error)
+
+
+def r2_unread(run: Run) -> int:
+    """R2: more output than an unread pipe can hold; the file and the database must still reach the end."""
+    run.started()
+    run.hold()
+    for _ in range(512):
+        run.text("x" * 4096)
+    return run.finished("completed")
+
+
 def r5(run: Run) -> int:
     """R5: a short answer that completes."""
     run.started()
@@ -536,6 +556,15 @@ def r19(run: Run) -> int:
     return run.finished("completed")
 
 
+def r10(run: Run) -> int:
+    run.started()
+    run.text("Before the signal.")
+    run.usage(inputTokens=40, outputTokens=4)
+    run.child()
+    run.open_tool("shell", {"command": "make"})
+    run.wait_for_stop()
+
+
 def r19_small_fails(run: Run) -> int:
     """R19 "fails": a small call, such as a title, that fails with a rate limit."""
     run.started()
@@ -554,6 +583,9 @@ SCRIPTS: dict[str, Script] = {
     "selftest hold": selftest_hold,
     "selftest fail": selftest_fail,
     "R1": r1,
+    "R2": r2,
+    "R2 unread": r2_unread,
+    "R2 interrupt": r8_tool,
     "R3 busy": r3_busy,
     "R5": r5,
     "R5 fails": r5_fails,
@@ -563,6 +595,7 @@ SCRIPTS: dict[str, Script] = {
     "R8 tool": r8_tool,
     "R8 ask": r8_ask,
     "R9": r9,
+    "R10": r10,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }

@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .home import ScenarioHome
-from .scenarios import r1, r3, r5, r8, r9, r19
+from .scenarios import r1, r2, r3, r5, r8, r9, r10, r19
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("R1", "A plain answer in the background",
              ("RCT-0.4", "0.6", "0.14", "1.1", "1.2", "1.5", "2.1", "2.4", "2.9", "2.20", "3.1", "3.2", "3.3"), r1.run),
     Scenario("R2", "The foreground, a failed and a cancelled one, Ctrl-C, and an output nothing reads",
-             ("RCT-2.5", "2.8", "2.19")),
+             ("RCT-2.5", "2.8", "2.19"), r2.run),
     Scenario("R3", "Refusals", ("RCT-0.3", "0.5", "2.2", "2.13", "2.17"), r3.run),
     Scenario("R4", "A repeat", ("RCT-2.3", "2.18", "2.19")),
     Scenario("R5", "A chat goes on", ("RCT-0.4", "0.5", "2.17"), r5.run),
@@ -37,7 +37,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("R7", "A Trunk that hangs", ("RCT-1.4", "2.6", "2.12")),
     Scenario("R8", "Stop", ("RCT-1.7", "2.7"), r8.run),
     Scenario("R9", "An answer to a question", ("RCT-1.7", "1.11"), r9.run),
-    Scenario("R10", "The termination signal in the middle of a run", ("RCT-2.8", "2.12")),
+    Scenario("R10", "The termination signal in the middle of a run", ("RCT-2.8", "2.12"), r10.run),
     Scenario("R11", "Failures", ("RCT-2.9", "2.10", "2.20")),
     Scenario("R12", "The database away", ("RCT-2.11", "2.12")),
     Scenario("R13", "Settling at its edges", ("RCT-1.9", "2.12", "3.4")),

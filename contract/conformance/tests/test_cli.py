@@ -42,6 +42,7 @@ class Cli(unittest.TestCase):
     def test_wrong_input_ends_with_2_and_says_what_is_wrong(self) -> None:
         """cli.input: an unknown option, a missing or doubled option, a Trunk that cannot be run, a version without
         layout.sql, and a scenario that is unknown, not implemented yet, or R16 alone."""
+        unfinished = next(scenario for scenario in SCENARIOS if scenario.run is None)
         cases = {
             "an unknown option": (["--trunk", TRUNK, "--root-contract", "1", "--fast"], "Unknown option: --fast"),
             "no --trunk": (["--root-contract", "1"], "Give --trunk."),
@@ -56,8 +57,8 @@ class Cli(unittest.TestCase):
             "an unknown scenario": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R1,R99"],
                                     "Unknown scenario: R99"),
             "R16 alone": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R16"], "runs after every scenario"),
-            "a scenario not implemented yet": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R2"],
-                                               "Scenario R2 is not implemented yet."),
+            "a scenario not implemented yet": (["--trunk", TRUNK, "--root-contract", "1", "--only", unfinished.id],
+                                               f"Scenario {unfinished.id} is not implemented yet."),
         }
         for name, (args, message) in cases.items():
             with self.subTest(name):
@@ -73,8 +74,9 @@ class Cli(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         lines = result.stdout.splitlines()
         self.assertEqual(lines[0], "FAIL R1 — A plain answer in the background")  # against a Trunk that does nothing
-        r2 = lines.index("FAIL R2 — The foreground, a failed and a cancelled one, Ctrl-C, and an output nothing reads")
-        self.assertEqual(lines[r2 + 1], "  Not implemented yet.")
+        unfinished = next(scenario for scenario in SCENARIOS if scenario.run is None)
+        missing = lines.index(f"FAIL {unfinished.id} — {unfinished.title}")
+        self.assertEqual(lines[missing + 1], "  Not implemented yet.")
         self.assertEqual(lines[-1], f"0/{len(SCENARIOS)} scenarios passed.")
         self.assertEqual([scenario.id for scenario in SCENARIOS],
                          [f"R{n}" for n in range(1, 20) if n != 16])
