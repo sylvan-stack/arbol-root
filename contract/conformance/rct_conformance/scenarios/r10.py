@@ -24,6 +24,7 @@ def run(home: ScenarioHome) -> None:
     started = home.start(MESSAGE)
     accepted(started)
     exchange = started.exchange
+    check(exchange in home.folders(), "The accepted Exchange has no folder.")
     wait_until(lambda: any(line.get("event", {}).get("type") == "tool_started" for line in home.events(exchange)),
                END_SECONDS, "SIGTERM: the running tool call")
     children = home.children()
