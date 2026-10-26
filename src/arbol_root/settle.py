@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from arbol_root.cleanup import cleanup
 from arbol_root.launcher import Reply, chosen_build, command_reply
 from arbol_root.listing import listing
 from arbol_root.model import Identity, Refusal
@@ -37,6 +38,7 @@ def settle_after_stop(context: Identity, exchange: str) -> dict[str, Any]:
 
 
 def settle(context: Identity, exchange: str | None = None) -> Reply:
+    cleaned = cleanup(context) if exchange is None else True
     unreadable: set[str] = set()
     if exchange is not None:
         targets = {exchange}
@@ -48,7 +50,7 @@ def settle(context: Identity, exchange: str | None = None) -> Reply:
     if isinstance(number, Reply):
         return number
     results: list[dict[str, Any]] = []
-    status = 0
+    status = 0 if cleaned else 1
     for name in sorted(targets | unreadable):
         if name in unreadable:
             value, failed = failure(name, Refusal('root_unavailable', 'Cannot verify this Exchange record/process.')), 1
