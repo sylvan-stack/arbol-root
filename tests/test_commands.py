@@ -42,12 +42,13 @@ class Commands(unittest.TestCase):
     def script(self, **values: object) -> None:
         (self.bin_dir / "script.json").write_text(json.dumps(values))
 
-    def run_cli(self, args: list[str], *, package: Path = REPO) -> subprocess.CompletedProcess[bytes]:
+    def run_cli(self, args: list[str], *, package: Path | None = None) -> subprocess.CompletedProcess[bytes]:
+        package = package or self.development
         return subprocess.run([sys.executable, '-I', '-B', str(package / 'bin/entry.py'), *args],
                               env={**os.environ, 'HOME': str(self.home), 'ARBOL_BUILD_DIR': '/wrong',
                                    'ARBOL_BUILD_NUMBER': 'ffff'}, capture_output=True, check=False, timeout=10)
 
-    def refusal(self, args: list[str], code: str, *, package: Path = REPO) -> None:
+    def refusal(self, args: list[str], code: str, *, package: Path | None = None) -> None:
         reply = self.run_cli(args, package=package)
         self.assertEqual(reply.returncode, 1, reply)
         self.assertEqual(json.loads(reply.stdout)['error']['code'], code, reply)

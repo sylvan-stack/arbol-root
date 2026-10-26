@@ -13,6 +13,8 @@ from typing import Any
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from program_support import development  # noqa: E402
+
 from arbol_root import listing as records  # noqa: E402
 from arbol_root.listing import listing  # noqa: E402
 from arbol_root.model import Identity, Refusal  # noqa: E402
@@ -169,12 +171,12 @@ class Listing(unittest.TestCase):
         settings.mkdir()
         os.mkfifo(settings / 'database.json')
         env = {**os.environ,'HOME':str(self.base),'ARBOL_BUILD_NUMBER':'ffff','TZ':'Pacific/Honolulu'}
-        reply = subprocess.run([sys.executable,'-I','-B',str(ROOT / 'bin/entry.py'),'--root','sapling','list',
+        package = development(self.base)
+        reply = subprocess.run([sys.executable,'-I','-B',str(package / 'bin/entry.py'),'--root','sapling','list',
                                 '--root-dir',str(self.root),'--bin-dir',str(self.base / 'no-launcher')],
                                env=env, capture_output=True, check=True, timeout=5)
         value = json.loads(reply.stdout)
-        expected = json.loads((ROOT / 'build.json').read_text())['build'] if (ROOT / 'build.json').exists() else '0'
-        self.assertEqual(value, {'root':'sapling','rootBuild':expected,'rootPackageVersion':'1.0.0',
+        self.assertEqual(value, {'root':'sapling','rootBuild':'0','rootPackageVersion':'1.0.0',
                                 'exchanges':[],'unreadable':[]})
 
 

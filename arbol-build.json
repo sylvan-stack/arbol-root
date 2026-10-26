@@ -9,6 +9,8 @@
   ],
   "entry": "bin/arbol-root",
   "checks": [
-    {"name": "unit", "kind": "unit", "command": "\"$ARBOL_BUILD_DIR/runtime/python/bin/python3.14\" -I -B \"$ARBOL_BUILD_DIR/scripts/check_build.py\""}
+    {"name": "unit", "kind": "unit", "command": "\"$ARBOL_BUILD_DIR/runtime/python/bin/python3.14\" -I -B \"$ARBOL_BUILD_DIR/scripts/check_build.py\""},
+    {"name": "layout", "kind": "unit", "command": "\"$ARBOL_BUILD_DIR/runtime/python/bin/python3.14\" -I -B \"$ARBOL_BUILD_DIR/scripts/check_layout.py\""},
+    {"name": "migration", "kind": "unit", "command": "\"$ARBOL_BUILD_DIR/runtime/python/bin/python3.14\" -I -B \"$ARBOL_BUILD_DIR/scripts/check_migration.py\""}
   ]
 }

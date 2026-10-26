@@ -13,6 +13,8 @@ from typing import Any, cast
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from program_support import development  # noqa: E402
+
 from arbol_root.input import parse  # noqa: E402
 from arbol_root.model import Identity, Refusal  # noqa: E402
 from arbol_root.start import start  # noqa: E402
@@ -30,6 +32,7 @@ class Starting(unittest.TestCase):
         temp = tempfile.TemporaryDirectory(prefix='rtm-start-')
         self.addCleanup(temp.cleanup)
         self.base = Path(temp.name).resolve()
+        self.development = development(self.base)
         self.bin = self.base / 'launchers with spaces'
         self.bin.mkdir()
         shutil.copy2(ROOT / 'tests/standin_trunk.py', self.bin / 'standin.py')
@@ -67,7 +70,7 @@ class Starting(unittest.TestCase):
         return [json.loads(line) for line in (self.bin / 'calls.jsonl').read_text().splitlines()]
 
     def cli(self, extra: list[str] | None = None) -> subprocess.CompletedProcess[bytes]:
-        return subprocess.run([sys.executable,'-I','-B',str(ROOT / 'bin/entry.py'),'--root','sapling',
+        return subprocess.run([sys.executable,'-I','-B',str(self.development / 'bin/entry.py'),'--root','sapling',
                                '--root-dir',str(self.root),'--bin-dir',str(self.bin),'start',*self.options,*(extra or [])],
                               env={**os.environ,'HOME':str(self.base)}, cwd=self.base,
                               capture_output=True, check=False, timeout=10)
