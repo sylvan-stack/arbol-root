@@ -582,6 +582,24 @@ def r14(run: Run) -> int:
     return run.finished("completed")
 
 
+def r6(run: Run) -> int:
+    run.started()
+    run.silence(60)
+    call = run.open_tool("shell", {"command": "make"})
+    run.silence(60)
+    run.finish_tool(call, result={"output": "built"})
+    run.ask([{"id": "branch", "question": "Which branch?", "multiple": False,
+              "options": [{"label": "main"}]}])
+    run.text("Done.")
+    return run.finished("completed")
+
+
+def r7(run: Run) -> int:
+    run.child()  # ready before the first event, where the Trunk deliberately hangs
+    run.started()
+    run.wait_for_stop()
+
+
 def r19_small_fails(run: Run) -> int:
     """R19 "fails": a small call, such as a title, that fails with a rate limit."""
     run.started()
@@ -609,6 +627,8 @@ SCRIPTS: dict[str, Script] = {
     "R5 fails": r5_fails,
     "R5 stopped": r5_stopped,
     "R5 together": r5_together,
+    "R6": r6,
+    "R7": r7,
     "R8 text": r8_text,
     "R8 tool": r8_tool,
     "R8 ask": r8_ask,
