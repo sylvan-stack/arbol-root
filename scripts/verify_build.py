@@ -60,6 +60,8 @@ if 'run' in args:
     print(json.dumps({'accepted':True,'duplicate':False,'root':args[args.index('--root')+1],
                       'exchange':args[args.index('--exchange')+1],
                       'chat':'c3d4e5f6-0718-4293-a4b5-c6d7e8f90a1b','number':1,'trunk':'fixture','build':'1'}),flush=True)
+elif 'settle' in args:
+    print(json.dumps({'exchange':args[-1],'settled':'interrupted'}),flush=True)
 ''')
         (fixture / 'arbol-build.json').write_text(json.dumps({
             'component':'arbol-trunk/fixture', 'entry':'program', 'rootContracts':[1],
@@ -69,6 +71,12 @@ if 'run' in args:
                      ['git','commit','-qm','Private Root manager inventory fixture']]:
             subprocess.run(args, cwd=fixture, check=True, capture_output=True)
         build('arbol-trunk/fixture', fixture)
+        description = json.loads((fixture / 'arbol-build.json').read_text())
+        description['component'] = 'arbol-trunk/trivial'
+        (fixture / 'arbol-build.json').write_text(json.dumps(description))
+        subprocess.run(['git','add','--','arbol-build.json'], cwd=fixture, check=True, capture_output=True)
+        subprocess.run(['git','commit','-qm','Private settling Trunk fixture'], cwd=fixture, check=True, capture_output=True)
+        build('arbol-trunk/trivial', fixture)
         good = build('arbol-root', source, 'sapling')
         folder = registry / 'arbol-root' / good['build']
         for name, original in [('chat-tables.sql','contract/1/layout.sql'), ('root-tables.sql','roots/sapling/layout.sql')]:
@@ -103,6 +111,24 @@ if 'run' in args:
         if (not acceptance.get('accepted') or acceptance.get('root') != 'sapling'
                 or acceptance.get('exchange') != exchange or acceptance.get('build') != '1' or request.exists()):
             raise ValueError('The private packaged start did not preserve acceptance and remove the request.')
+        def management(*arguments: str) -> dict[str, Any]:
+            answer = subprocess.run([str(bin_dir / 'arbol-root'),'--root','sapling',*arguments],
+                                    env=shell_env, cwd=home, capture_output=True, check=True, timeout=20)
+            value: dict[str, Any] = json.loads(answer.stdout)
+            if value.get('root') != 'sapling':
+                raise ValueError('A private manager reply lost its Root identity.')
+            return value
+        stopped = management('stop',exchange)
+        if stopped != {'root':'sapling','exchange':exchange,'ended':'none','forced':False}:
+            raise ValueError('The private packaged missing-folder stop has the wrong result.')
+        settled = management('settle',exchange)
+        if settled != {'root':'sapling','results':[{'exchange':exchange,'settled':'interrupted'}]}:
+            raise ValueError('The private packaged exact-Trivial-Build settle has the wrong result.')
+        debris = roots / 'sapling/exchanges' / ('.'+exchange+'.old')
+        debris.mkdir(parents=True)
+        (debris / 'fictional-payload').write_text('committed private fixture')
+        if management('settle') != {'root':'sapling','results':[]} or debris.exists():
+            raise ValueError('The private packaged all-settle did not clean committed dot debris.')
         bad = build('arbol-root', source, 'missing', succeeds=False)
         bad_log = (registry / 'arbol-root' / bad['build'] / 'build.log').read_text()
         if 'Missing regular SQL file' not in bad_log or 'roots/missing/layout.sql' not in bad_log:
@@ -118,6 +144,7 @@ if 'run' in args:
                 'packagedFiles':{name:digest for name,digest in manifest['files'].items()
                                  if name.startswith(('src/','scripts/','tests/','bin/','contract/','roots/'))},
                 'trunks':listed, 'startAccepted':True, 'emptyListingIdentity':True, 'freshLoginName':True, 'replyBytesIdentical':True,
+                'missingStop':True, 'exactTrivialSettle':True, 'allSettleDotCleanup':True,
                 'ownerRootsChanged':False, 'vendorRequests':0, 'temporaryStateRemovedOnReturn':True}
 
 

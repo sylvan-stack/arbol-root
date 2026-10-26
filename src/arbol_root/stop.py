@@ -47,6 +47,8 @@ def read_exchange(context: Identity, exchange: str) -> Observed | None:
                 os.stat(exchange, dir_fd=catalogue, follow_symlinks=False)
             except FileNotFoundError:
                 return None
+            except OSError:
+                pass
             raise Refusal('root_unavailable', f'Cannot verify Exchange {exchange}: {error}') from error
     finally:
         os.close(catalogue)

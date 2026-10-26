@@ -21,6 +21,11 @@ def failure(exchange: str, error: Refusal) -> dict[str, Any]:
 def settle_one(context: Identity, number: str, exchange: str) -> tuple[dict[str, Any], int]:
     try:
         reply = command_reply(context.root, ['trivial', '-v', number, 'settle', exchange], context.bin_dir, 'settle')
+        if reply.value.get('exchange', exchange) != exchange:
+            raise Refusal('trunk_unavailable', 'The settling reply names a different Exchange.')
+        state = reply.value.get('settled')
+        if 'error' not in reply.value and (not isinstance(state, str) or not state):
+            raise Refusal('trunk_unavailable', 'The settling reply has no readable settled state.')
         return {'exchange':exchange, **reply.value}, reply.status
     except Refusal as error:
         return failure(exchange, error), 1

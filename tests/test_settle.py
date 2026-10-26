@@ -124,3 +124,14 @@ class Settling(unittest.TestCase):
         reply = settle(self.f.context, record(1)['exchange'])
         self.assertEqual(reply.status, 1)
         self.assertEqual(reply.value['results'][0]['extra'], 3)
+
+    def test_success_without_a_state_or_with_a_different_exchange_is_unavailable(self) -> None:
+        """root.settle-reply-identity"""
+        name = record(1)['exchange']
+        for value in [{}, {'settled':None}, {'settled':{}}, {'settled':''},
+                      {'settled':'completed','exchange':record(2)['exchange']}]:
+            with self.subTest(value=value):
+                self.f.script(stdout=json.dumps(value)+'\n')
+                reply = settle(self.f.context, name)
+                self.assertEqual(reply.status, 1)
+                self.assertEqual(reply.value['results'][0]['error']['code'], 'trunk_unavailable')
