@@ -587,6 +587,7 @@ SCRIPTS: dict[str, Script] = {
     "R2 unread": r2_unread,
     "R2 interrupt": r8_tool,
     "R3 busy": r3_busy,
+    "R4": r3_busy,
     "R5": r5,
     "R5 fails": r5_fails,
     "R5 stopped": r5_stopped,
