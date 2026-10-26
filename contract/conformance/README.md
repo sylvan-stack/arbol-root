@@ -11,6 +11,8 @@ python3.14 contract/conformance/bin/rct-conformance.py --trunk "…" --root-cont
 
 `--trunk` is what starts the Trunk Build's own program, not the launcher: a path, or a name found on the search path, with any fixed arguments in the same quoted value, such as `--trunk 'python3.14 trunks/trivial/src/main.py'`. The suite adds `--root rct` and the command. The exit status is 0 when every scenario passed, 1 when one failed, and 2 for wrong input, for PostgreSQL's programs missing, or when the suite was stopped.
 
+The registry implements all eighteen scenarios of contract 1. R16 runs after each one. The unit checks compare its coverage with an independent index of the thirty-nine Trunk requirements that name `contract` as their check.
+
 ## What each scenario gets
 
 `rct_conformance/home.py` makes, for every scenario, and removes again afterwards:
@@ -28,9 +30,9 @@ After every scenario, R16 compares PostgreSQL's catalogue of the database with t
 
 ## Writing a scenario
 
-Each scenario comes with the Trivial Trunk task that makes it pass. To add one:
+All scenarios of contract 1 are implemented. For a later contract or a new check:
 
-1. Write `run(home: ScenarioHome) -> None` in `rct_conformance/scenarios/r<number>.py`, such as `r1.py`, and give it to the scenario's entry in `rct_conformance/registry.py`. A scenario without `run` is not implemented yet: a whole run reports it as failed, and `--only` refuses it.
+1. Write `run(home: ScenarioHome) -> None` in `rct_conformance/scenarios/r<number>.py`, such as `r1.py`, and give it to the scenario's entry in `rct_conformance/registry.py`. Every registry entry must have `run`; `tests/test_coverage.py` checks this and coverage against the independent requirement index in `rct_conformance/requirements.py`. Recheck that index against the specification tables when their requirements change.
 2. Judge with what `ScenarioHome` offers, and nothing else:
    - `home.part("tool")` names the script the stand-in plays from now on, "R8 tool"; `home.release()` lets the runs it holds open (`hold()`) go on, until the next part is named;
    - `home.start(message, …)` starts `run --detach` as `arbol-root` does: `--exchange <id> --request <file>`, the request naming the Driver, the Subscription and the model, in a process group and session of its own, with standard input from `/dev/null`; it reads one line and gives it with the Trunk's process and how long the answer took; `detach=False` starts the foreground form and keeps its output pipe open without consuming any bytes after the acceptance; `root=` names another Root identifier than `rct`, and `meanwhile=` a function that runs once the Trunk is started and before its line is read; starts may run from several threads at once, such as two messages to one chat at the same moment;

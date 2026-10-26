@@ -1,9 +1,8 @@
-"""The scenarios of RCT-4, in the order of its table.
+"""The complete contract-1 scenario registry, in the order of RCT-4's table.
 
-A scenario without `run` is not implemented yet: each comes with the Trivial Trunk task that makes it pass, and
-RCT-4.3 closes with the last of them (SYL-178). A whole run of the suite reports every scenario that is not
-implemented yet as failed, so that no Trunk Build passes against half a suite; `--only` refuses to choose one. R16 is
-no scenario of its own: it runs after every scenario (runner.py).
+R16 runs after every scenario rather than as a scenario of its own (runner.py).
+Unit checks require every entry to be runnable and all conformance requirements
+of a Trunk to be covered by this registry.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .home import ScenarioHome
-from .scenarios import r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r17, r19
+from .scenarios import r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r17, r18, r19
 
 
 @dataclass(frozen=True)
@@ -44,7 +43,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("R14", "Sending again", ("RCT-2.13", "3.4", "3.9"), r14.run),
     Scenario("R15", "Size limits", ("RCT-1.6", "1.12"), r15.run),
     Scenario("R17", "Characters PostgreSQL cannot store", ("RCT-3.10",), r17.run),
-    Scenario("R18", "A Driver that falls silent", ("RCT-2.21",)),
+    Scenario("R18", "A Driver that falls silent", ("RCT-2.21",), r18.run),
     Scenario("R19", "Small calls", ("RCT-1.11", "2.22"), r19.run),
 ]
 
@@ -65,5 +64,5 @@ def select(only: str | None, available: list[Scenario] | None = None) -> list[Sc
             raise ValueError(f"Unknown scenario: {scenario_id}. Scenarios: {', '.join(by_id)}.")
     for scenario_id in ids:
         if by_id[scenario_id].run is None:
-            raise ValueError(f"Scenario {scenario_id} is not implemented yet.")
+            raise ValueError(f"Scenario {scenario_id} has no run.")
     return [scenario for scenario in available if scenario.id in ids]
