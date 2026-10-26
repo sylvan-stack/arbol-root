@@ -42,6 +42,7 @@ class Fixture:
         self.context = Identity('sapling', '0', '1.0.0', self.root, self.bin)
         self.case = case
         self.children: list[subprocess.Popen[bytes]] = []
+        self.group_children: dict[int, int] = {}
         case.addCleanup(self.end_groups)
         self.script()
 
@@ -74,6 +75,8 @@ class Fixture:
         began = started_at(child.pid)
         assert began is not None
         value['process'] = {'pid':child.pid, 'startedAt':began.isoformat()}
+        if (folder / 'child-pid').exists():
+            self.group_children[child.pid] = int((folder / 'child-pid').read_text())
         (folder / 'record.json').write_text(json.dumps(value))
         return folder, child
 
@@ -82,6 +85,13 @@ class Fixture:
             if child.poll() is None:
                 try:
                     os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            member = self.group_children.get(child.pid)
+            if member is not None:
+                try:
+                    if os.getpgid(member) == child.pid:
+                        os.kill(member, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
             child.wait(timeout=5)

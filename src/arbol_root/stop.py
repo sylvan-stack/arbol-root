@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from arbol_root.clock import awake
+from arbol_root.groups import force_group
 from arbol_root.launcher import Reply
 from arbol_root.listing import project, read_record
 from arbol_root.model import Identity, Refusal
@@ -102,7 +103,13 @@ def append_stop(context: Identity, exchange: str, expected: Observed) -> None:
 
 def force_end(context: Identity, exchange: str, expected: Observed,
               clock: Callable[[], float], pause: Callable[[float], None]) -> bool:
-    raise Refusal('not_ended', 'Forced group termination is not available in this unmerged candidate.')
+    observed = read_exchange(context, exchange)
+    if observed is None:
+        return False
+    same_process(observed, expected)
+    if not observed.alive or observed.end is not None:
+        return False
+    return force_group(observed.process, clock, pause)
 
 
 def result(context: Identity, exchange: str, ended: str, forced: bool,
@@ -150,5 +157,12 @@ def stop(context: Identity, exchange: str, force: bool = False, *,
                 break
             pause(min(0.1, max(0, deadline-clock())))
     forced = force_end(context, exchange, expected, clock, pause)
-    observed = read_exchange(context, exchange) or expected
+    observed = read_exchange(context, exchange)
+    if observed is None:
+        return save_ended(context, exchange, expected, True) if forced else result(context, exchange, 'saved', False)
+    same_process(observed, expected)
+    if not forced and observed.end is not None:
+        return result(context, exchange, observed.end, False)
+    if not forced and observed.alive and observed.end is None:
+        raise Refusal('root_unavailable', 'The Exchange still lives but its group could not be ended.')
     return save_ended(context, exchange, observed, forced)
