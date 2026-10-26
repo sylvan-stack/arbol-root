@@ -11,7 +11,9 @@ from arbol_root.input import parse as parse_command
 from arbol_root.launcher import list_reply
 from arbol_root.listing import listing
 from arbol_root.model import Refusal, identity
+from arbol_root.settle import settle
 from arbol_root.start import start
+from arbol_root.stop import stop
 
 
 def parse(args: list[str]) -> Command:
@@ -32,6 +34,15 @@ def main(args: list[str] | None = None, *, package: Path | None = None) -> int:
             return trunks(context.root, [] if command.code is None else [command.code], context.bin_dir)
         if command.name == 'start':
             reply = start(context, command)
+            sys.stdout.buffer.write(reply.raw)
+            return reply.status
+        if command.name == 'settle':
+            reply = settle(context, command.exchange)
+            sys.stdout.buffer.write(reply.raw)
+            return reply.status
+        if command.name == 'stop':
+            assert command.exchange is not None
+            reply = stop(context, command.exchange, '--force' in command.options)
             sys.stdout.buffer.write(reply.raw)
             return reply.status
         print(json.dumps(listing(context), ensure_ascii=True))

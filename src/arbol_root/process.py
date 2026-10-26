@@ -19,6 +19,15 @@ def timestamp(value: object) -> datetime:
     return parsed.astimezone(UTC)
 
 
+def parse_start(value: str) -> datetime:
+    try:
+        _day, month, date, clock, year = value.split()
+        hour, minute, second = map(int, clock.split(':'))
+        return datetime(int(year),MONTHS[month],int(date),hour,minute,second,tzinfo=UTC)
+    except (ValueError, KeyError):
+        raise ValueError('ps returned an unreadable process start time.') from None
+
+
 def started_at(pid: int) -> datetime | None:
     result = subprocess.run(['/bin/ps','-o','lstart=','-p',str(pid)], capture_output=True, text=True, check=False,
                             env={'PATH':'/usr/bin:/bin','LANG':'C','LC_ALL':'C','TZ':'UTC'}, timeout=5)
@@ -26,12 +35,7 @@ def started_at(pid: int) -> datetime | None:
         if result.returncode == 1 and not result.stdout.strip() and not result.stderr.strip():
             return None
         raise ValueError('The recorded process could not be checked.')
-    try:
-        _day, month, date, clock, year = result.stdout.split()
-        hour, minute, second = map(int, clock.split(':'))
-        return datetime(int(year),MONTHS[month],int(date),hour,minute,second,tzinfo=UTC)
-    except (ValueError, KeyError):
-        raise ValueError('ps returned an unreadable process start time.') from None
+    return parse_start(result.stdout)
 
 
 def process_alive(process: dict[str, Any]) -> bool:

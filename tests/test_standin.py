@@ -20,10 +20,11 @@ class StandIn(unittest.TestCase):
             program.write_bytes((ROOT / 'tests/standin_trunk.py').read_bytes())
             script = {'responses':{'list':{'stdout':'{"trunks":[]}\n'}, 'run':{
                 'fragments':[{'text':'{"accepted":','delay':0.02}, {'text':'true}\n'}],
-                'stderr':'diagnostic\n','status':1}}}
+                'stderr':'diagnostic\n','status':1}, 'settle':{'settled':'interrupted'}}}
             (base / 'script.json').write_text(json.dumps(script))
             env = {'HOME':str(base), 'PATH':'/usr/bin:/bin', 'LANG':'en_US.UTF-8'}
-            for command, line, status in [('list', b'{"trunks":[]}\n', 0), ('run', b'{"accepted":true}\n', 1)]:
+            for command, line, status in [('list', b'{"trunks":[]}\n', 0), ('run', b'{"accepted":true}\n', 1),
+                                           ('settle', b'{"exchange": "settle", "settled": "interrupted"}\n', 0)]:
                 with self.subTest(command=command):
                     process = subprocess.Popen([sys.executable,'-I','-B',str(program),'--root','sapling',command],
                                                env=env, cwd=base, start_new_session=True,

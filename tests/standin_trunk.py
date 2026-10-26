@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import stat
 import sys
 import time
@@ -9,8 +10,14 @@ from pathlib import Path
 
 base = Path(__file__).resolve().parent
 script = json.loads((base / 'script.json').read_text())
-command = 'run' if 'run' in sys.argv[1:] else 'list'
+command = next((name for name in ['run', 'settle'] if name in sys.argv[1:]), 'list')
 script = {**script, **script.get('responses', {}).get(command, {})}
+if command == 'settle':
+    script = {**script, **script.get('outcomes', {}).get(sys.argv[-1], {})}
+    if 'settled' in script and 'stdout' not in script:
+        script['stdout'] = json.dumps({'exchange':sys.argv[-1], 'settled':script['settled']})+'\n'
+    if script.get('removeExchange'):
+        shutil.rmtree(Path(script['removeExchange']) / sys.argv[-1])
 stdin = os.fstat(0)
 null = os.stat('/dev/null')
 call = {'args':sys.argv[1:], 'path':os.environ['PATH'], 'home':os.environ['HOME'],
