@@ -72,5 +72,6 @@ def parse_line(line: str | None) -> Any:
 
 
 def describe(value: Any, limit: int = 2048) -> str:
-    text = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    text = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode(
+        "utf-8", "backslashreplace").decode("utf-8")
     return text if len(text) <= limit else text[:limit] + "…"

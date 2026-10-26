@@ -93,7 +93,7 @@ class StandIn:
                   "arguments": self.arguments, "request": self.request, "control": self.control,
                   "events": self.events, "signals": self.signals, "workingDirectory": os.getcwd()}
         self.folder.mkdir(parents=True, exist_ok=True)
-        line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8", "surrogatepass")
+        line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8", "backslashreplace")
         descriptor = os.open(self.folder / "received.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
         try:
             os.write(descriptor, line)
@@ -210,7 +210,7 @@ class Run:
             event["labels"] = self.labels
         event["type"] = kind
         event.update(fields)
-        line = json.dumps(event, ensure_ascii=False)
+        line = json.dumps(event, ensure_ascii=False).encode("utf-8", "backslashreplace").decode("utf-8")
         try:
             sys.stdout.write(line + "\n")
             sys.stdout.flush()
@@ -630,6 +630,19 @@ def r12(run: Run) -> int:
     return run.finished("completed")
 
 
+def r17(run: Run) -> int:
+    """Keep malformed characters in the event stream; the Trunk alone sanitizes SQL values."""
+    run.started()
+    run.hold()
+    run.text("A whole 😀 stays whole.")
+    run.text("\ud83d")
+    run.text("\ude00")
+    call = run.open_tool("shell", {"command": "cat binary", "nested": {"key\0": ["\ud83d", "😀"]}})
+    run.finish_tool(call, ok=True, result={"output": "before\0after 😀", "exitCode": 0}, interrupted=True)
+    run.usage(inputTokens=1, outputTokens=2)
+    return run.finished("completed")
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -662,6 +675,7 @@ SCRIPTS: dict[str, Script] = {
     "R11 not_signed_in": r11_not_signed_in,
     "R11 folder": selftest_child,
     "R12": r12,
+    "R17": r17,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
