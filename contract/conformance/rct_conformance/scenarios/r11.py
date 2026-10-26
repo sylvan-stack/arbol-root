@@ -26,6 +26,8 @@ def driver_failures(home: ScenarioHome) -> None:
         equal(started.process.wait(timeout=END_SECONDS), 1, "The failed Trunk's exit status")
         records = home.received()[before:]
         equal(len(records), 1, "Exactly one Driver run, with no route retry")
+        equal((records[0]["launcher"], records[0]["request"]["subscriptionId"], records[0]["request"]["model"]),
+              ("arbol-claude-driver", ROUTE["subscription"], ROUTE["model"]), "The Driver keeps the handed route")
         finished = next(json.loads(raw) for raw in records[0]["events"] if json.loads(raw)["type"] == "finished")
         error = finished["error"]
         equal(error["code"], code, "The Driver's error code")
