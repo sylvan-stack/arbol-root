@@ -10,12 +10,14 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT / 'roots/sapling/drills'))
 sys.path.insert(0,str(ROOT / 'contract/conformance'))
 from drill_support import Budget, Commands, DrillError, Inspector, Places, new_json, wait_for  # noqa: E402
 from rct_conformance.postgres import Server  # noqa: E402
+from sapling_creation import make_sapling  # noqa: E402
 
 
 class Frame(unittest.TestCase):
@@ -145,3 +147,74 @@ class ReadOnly(unittest.TestCase):
                 self.assertEqual(set(inspector.environment),{'HOME','PATH','LANG'})
             finally:
                 server.remove()
+
+
+class Creation(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix='private sapling creation ')
+        self.addCleanup(temporary.cleanup)
+        self.home = Path(temporary.name).resolve()
+        self.places = Places(self.home,self.home/'bin',self.home/'evidence')
+        self.calls = mock.Mock(spec=Commands)
+        self.inspector = mock.Mock(spec=Inspector)
+        self.inspector.counts.return_value = dict.fromkeys(['chats','exchanges','messages','tool_calls','runs'],0)
+
+    def replies(self) -> list[object]:
+        return [[], {'root':'sapling','name':'First Sapling','status':'preparing','rootContract':1},
+                {'root':'sapling','build':'1','status':'working',
+                 'checks':[{'name':name,'passed':True} for name in ['unit','layout','migration']],
+                 'source':{'commit':'merged-source','branch':'main','uncommittedChanges':False}},
+                {'root':'sapling','rootBuild':'1','files':['chat-tables.sql','root-tables.sql']},
+                {'root':'sapling','status':'working'}, [{'root':'sapling','current':True}],
+                {'root':'sapling','rootBuild':'1','exchanges':[],'unreadable':[]}]
+
+    def test_creation_runs_the_named_steps_and_preserves_receipts(self) -> None:
+        """sapling.creation"""
+        self.calls.run.side_effect = self.replies()
+        with mock.patch('sapling_creation.merged_source',return_value='merged-source'):
+            result = make_sapling(self.places,self.home/'readonly',commands=self.calls,
+                                  inspector=lambda _places:self.inspector)
+        self.assertTrue(result['current'])
+        actual = [call.args[:2] for call in self.calls.run.call_args_list]
+        self.assertEqual(actual,[('arbol-roots','list'),('arbol-roots','create'),('arbol-builds','build'),
+                                 ('arbol-roots','migrate'),('arbol-roots','ready'),('arbol-roots','list'),
+                                 ('arbol-root','--root')])
+        self.assertEqual(len(list(Path(result['receipt']).glob('*.json'))),6)
+        self.assertEqual(result['vendorRequests'],0)
+
+    def test_existing_or_unpublished_root_is_never_migrated_or_removed(self) -> None:
+        """sapling.creation-refusal"""
+        for existing in ['catalogue','folder','settings']:
+            self.calls.reset_mock()
+            self.calls.run.side_effect = [[{'root':'sapling'}] if existing == 'catalogue' else []]
+            target = self.places.roots/'sapling' if existing == 'folder' else self.home/'.arbol/roots/sapling'
+            if existing != 'catalogue':
+                target.mkdir(parents=True)
+            with self.subTest(existing=existing),self.assertRaises(DrillError):
+                make_sapling(self.places,self.home/'readonly',commands=self.calls)
+            self.assertEqual(self.calls.run.call_count,1)
+            if existing != 'catalogue':
+                target.rmdir()
+
+    def test_failed_build_stops_before_migration_and_keeps_created_receipt(self) -> None:
+        """sapling.creation-failure"""
+        replies = self.replies()
+        replies[2] = {'root':'sapling','status':'failed'}
+        self.calls.run.side_effect = replies
+        with mock.patch('sapling_creation.merged_source',return_value='merged-source'):
+            with self.assertRaises(DrillError):
+                make_sapling(self.places,self.home/'readonly',commands=self.calls)
+        self.assertEqual(self.calls.run.call_count,3)
+        receipts = list((self.places.evidence/'creation-attempts').iterdir())
+        self.assertEqual(len(receipts),1)
+        self.assertTrue((receipts[0]/'created.json').is_file())
+        self.assertEqual(json.loads((receipts[0]/'failure.json').read_text())['phase'],'build')
+
+    def test_branch_source_is_refused_before_create(self) -> None:
+        """sapling.creation-source"""
+        self.calls.run.return_value = []
+        with mock.patch('sapling_creation.merged_source',side_effect=DrillError('unmerged source')):
+            with self.assertRaises(DrillError):
+                make_sapling(self.places,self.home/'branch',commands=self.calls)
+        self.assertEqual(self.calls.run.call_count,1)
+        self.assertFalse(self.places.evidence.exists())
