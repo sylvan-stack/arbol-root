@@ -643,6 +643,37 @@ def r17(run: Run) -> int:
     return run.finished("completed")
 
 
+def r15_tool(run: Run) -> int:
+    run.started()
+    run.hold()
+    call = run.open_tool("shell", {"command": "cat a-large-log"})
+    for _ in range(32):
+        run.event("tool_output_delta", callId=call, text="x" * 65536)
+    run.finish_tool(call, result={"output": "x" * (200 * 1024), "exitCode": 0}, truncated=True)
+    run.text("The large log was read.")
+    return run.finished("completed")
+
+
+def r15_file(run: Run) -> int:
+    run.started()
+    run.hold()
+    run.text("Saved before the file filled.")
+    run.shell("printf ready", "ready")
+    run.open_tool("shell", {"command": "a-long-running-command"})
+    run.usage(inputTokens=20, outputTokens=5)
+    for _ in range(8192):  # at most 512 MiB if a broken Trunk never stops; each loop still reads control
+        run.event("text_delta", text="x" * 65536)
+    return run.finished("completed")
+
+
+def r18(run: Run) -> int:
+    run.started()
+    run.child()  # a background command does not keep the Trivial Trunk's idle clock open
+    run.text("Half an answer before silence.")
+    run.usage(inputTokens=7, outputTokens=3)
+    run.wait_for_stop()
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -675,7 +706,10 @@ SCRIPTS: dict[str, Script] = {
     "R11 not_signed_in": r11_not_signed_in,
     "R11 folder": selftest_child,
     "R12": r12,
+    "R15 tool": r15_tool,
+    "R15 file": r15_file,
     "R17": r17,
+    "R18": r18,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
