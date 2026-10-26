@@ -1,0 +1,8 @@
+#!/bin/sh
+directory=${0%/*}
+[ "$directory" != "$0" ] || directory=.
+root=$(CDPATH= cd -- "$directory/.." && pwd -P) || exit 1
+if [ -x "$root/runtime/python/bin/python3.14" ]; then
+    exec "$root/runtime/python/bin/python3.14" -I -B "$root/bin/entry.py" "$@"
+fi
+exec uv run --project "$root" --no-sync python -I -B "$root/bin/entry.py" "$@"

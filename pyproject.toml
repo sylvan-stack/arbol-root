@@ -1,7 +1,7 @@
 [project]
 name = "arbol-root"
 version = "1.0.0"
-description = "Arbol Root: the Root Contract's chat tables and its conformance suite."
+description = "Arbol Root: the Root manager, its layouts and the Root Contract suite."
 requires-python = "==3.14.8"
 dependencies = []
 
@@ -14,8 +14,8 @@ package = false
 [tool.mypy]
 python_version = "3.14"
 strict = true
-mypy_path = ["contract/conformance"]
-files = ["contract/conformance/rct_conformance", "contract/conformance/tests", "contract/conformance/standin/driver.py",
+mypy_path = ["src", "contract/conformance"]
+files = ["src", "tests", "scripts", "bin/entry.py", "contract/conformance/rct_conformance", "contract/conformance/tests", "contract/conformance/standin/driver.py",
          "contract/conformance/bin/rct-conformance.py"]
 
 [tool.ruff]

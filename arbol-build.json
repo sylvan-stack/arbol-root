@@ -1,0 +1,14 @@
+{
+  "component": "arbol-root",
+  "build": [
+    "uv sync --locked --group dev",
+    "uv run --no-sync ruff check .",
+    "uv run --no-sync mypy",
+    "uv run --no-sync python -B scripts/package_build.py",
+    "uv run --no-sync python -B scripts/build.py"
+  ],
+  "entry": "bin/arbol-root",
+  "checks": [
+    {"name": "unit", "kind": "unit", "command": "\"$ARBOL_BUILD_DIR/runtime/python/bin/python3.14\" -I -B \"$ARBOL_BUILD_DIR/scripts/check_build.py\""}
+  ]
+}

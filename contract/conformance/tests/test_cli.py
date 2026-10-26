@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -17,7 +18,7 @@ from rct_conformance.runner import run_suite
 
 from .support import CLI, FAKE_TRUNK, LAYOUT, psql
 
-TRUNK = f"{sys.executable} -I -B {FAKE_TRUNK[-1]}"
+TRUNK = shlex.join(FAKE_TRUNK)
 
 
 def suite(*args: str, path: str | None = None) -> subprocess.CompletedProcess[str]:

@@ -1,0 +1,4 @@
+-- First Sapling's own tables (RTM-1.4).
+-- Chat tables belong to contract/<version>/layout.sql.
+-- There are no Root-only tables in this first thin path yet.
+-- Later statements must be repeatable, additive and fully commented.
