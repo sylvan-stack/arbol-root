@@ -594,6 +594,12 @@ def r6(run: Run) -> int:
     return run.finished("completed")
 
 
+def r7(run: Run) -> int:
+    run.child()  # ready before the first event, where the Trunk deliberately hangs
+    run.started()
+    run.wait_for_stop()
+
+
 def r19_small_fails(run: Run) -> int:
     """R19 "fails": a small call, such as a title, that fails with a rate limit."""
     run.started()
@@ -622,6 +628,7 @@ SCRIPTS: dict[str, Script] = {
     "R5 stopped": r5_stopped,
     "R5 together": r5_together,
     "R6": r6,
+    "R7": r7,
     "R8 text": r8_text,
     "R8 tool": r8_tool,
     "R8 ask": r8_ask,
