@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 from rct_conformance.home import ScenarioHome
-from rct_conformance.judge import Mismatch
+from rct_conformance.judge import Mismatch, describe
 from rct_conformance.registry import SCENARIOS, Scenario, select
 from rct_conformance.runner import run_suite
 
@@ -90,6 +90,12 @@ class Cli(unittest.TestCase):
 class Runner(unittest.TestCase):
     def make_home(self, scenario: Scenario) -> ScenarioHome:
         return ScenarioHome.create(scenario.id, FAKE_TRUNK, 1, LAYOUT)
+
+    def test_failure_descriptions_can_print_lone_surrogates_as_valid_utf8(self) -> None:
+        text = describe({"text": "\ud83d", "emoji": "😀"})
+        self.assertEqual(text.encode("utf-8").decode("utf-8"), text)
+        self.assertIn("\\ud83d", text)
+        self.assertIn("😀", text)
 
     def test_reports_each_scenario_and_runs_r16_after_each(self) -> None:
         """runner.report: PASS for a scenario whose checks and R16 pass, FAIL with what was expected and received for

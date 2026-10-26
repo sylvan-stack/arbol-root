@@ -12,6 +12,7 @@ from .r13 import settled, tables
 
 def run(home: ScenarioHome) -> None:
     during_work(home)
+    after_acceptance(home)
     through_the_end(home)
 
 
@@ -51,12 +52,34 @@ def judge_saved(home: ScenarioHome, exchange: str) -> None:
           [{"state": "completed", "error": None}], "The saved end")
 
 
+def after_acceptance(home: ScenarioHome) -> None:
+    home.part("acceptance")
+    started = home.start()
+    accepted(started)
+    exchange = started.exchange
+    home.server.stop()
+    time.sleep(61 / TIME_SCALE)
+    home.server.start()
+    home.release()
+    status = started.process.wait(timeout=END_SECONDS)
+    row = home.rows(f"SELECT state, error FROM exchanges WHERE id = '{exchange}'")[0]
+    if row["state"] == "failed":
+        equal((status, row["error"]["code"]), (1, "database_unavailable"),
+              "A Trunk needing history fails truthfully after its read budget")
+    else:
+        equal(status, 0, "A Trunk needing no more history completes")
+        judge_saved(home, exchange)
+    check(exchange not in home.folders(hidden=True), "Recovery after acceptance left the folder.")
+
+
 def through_the_end(home: ScenarioHome) -> None:
     home.part("end")
     started = home.start()
     accepted(started)
     exchange = started.exchange
-    home.server.stop()  # immediately after acceptance, before any later database read can succeed
+    wait_until(lambda: any(line.get("event", {}).get("type") == "text" for line in home.events(exchange)),
+               END_SECONDS, "the Driver to be running before the final outage")
+    home.server.stop()
     before = home.record(exchange)["signsOfLife"]["heartbeat"]
     time.sleep(61 / TIME_SCALE)
     equal(started.process.poll(), None, "The Driver remains working after 60 seconds without PostgreSQL")
