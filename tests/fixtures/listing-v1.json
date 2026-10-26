@@ -1,0 +1,18 @@
+{
+  "root": "sapling",
+  "rootBuild": "7",
+  "rootPackageVersion": "1.0.0",
+  "exchanges": [
+    {
+      "root": "sapling",
+      "exchange": "00000000-0000-4000-8000-000000000001",
+      "chat": "c3d4e5f6-0718-4293-a4b5-c6d7e8f90a1b",
+      "trunk": "trivial",
+      "build": "a",
+      "process": {"pid": 123, "startedAt": "2026-10-26T09:00:00.000Z", "alive": true},
+      "state": "running",
+      "signsOfLife": {"heartbeat": 41, "waitingFor": "tool", "since": "2026-10-26T09:00:00.000Z"}
+    }
+  ],
+  "unreadable": []
+}

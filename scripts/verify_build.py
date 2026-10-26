@@ -9,6 +9,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -51,12 +52,20 @@ def qualify(source: Path, tool: Path, cache: Path) -> dict[str, Any]:
         fixture = home / 'fictional trunk'
         fixture.mkdir()
         (fixture / 'package.json').write_text('{"version":"1.0.0"}')
-        (fixture / 'program').write_text('#!/bin/sh\nexit 0\n')
+        (fixture / 'program').write_text('#!/bin/sh\ndirectory=${0%/*}\nexec '+shlex.quote(sys.executable)+
+                                        ' -I -B "$directory/program.py" "$@"\n')
+        (fixture / 'program.py').write_text('''import sys,json
+args=sys.argv[1:]
+if 'run' in args:
+    print(json.dumps({'accepted':True,'duplicate':False,'root':args[args.index('--root')+1],
+                      'exchange':args[args.index('--exchange')+1],
+                      'chat':'c3d4e5f6-0718-4293-a4b5-c6d7e8f90a1b','number':1,'trunk':'fixture','build':'1'}),flush=True)
+''')
         (fixture / 'arbol-build.json').write_text(json.dumps({
             'component':'arbol-trunk/fixture', 'entry':'program', 'rootContracts':[1],
-            'build':['cp program "$ARBOL_BUILD_DIR/program" && chmod +x "$ARBOL_BUILD_DIR/program"'],
+            'build':['cp program program.py "$ARBOL_BUILD_DIR/" && chmod +x "$ARBOL_BUILD_DIR/program"'],
             'checks':[{'name':'fixture','kind':'unit','command':'"$ARBOL_BUILD_DIR/program"'}]}))
-        for args in [['git','init','-q','-b','main'],['git','add','--','package.json','program','arbol-build.json'],
+        for args in [['git','init','-q','-b','main'],['git','add','--','package.json','program','program.py','arbol-build.json'],
                      ['git','commit','-qm','Private Root manager inventory fixture']]:
             subprocess.run(args, cwd=fixture, check=True, capture_output=True)
         build('arbol-trunk/fixture', fixture)
@@ -79,6 +88,21 @@ def qualify(source: Path, tool: Path, cache: Path) -> dict[str, Any]:
         found, _newline, answer = probe.stdout.partition(b'\n')
         if Path(found.decode()).resolve() != (bin_dir / 'arbol-root').resolve() or answer != expected:
             raise ValueError(f'The fresh-login Root launcher differs from Trunk inventory: {probe.stdout!r}')
+        listing_run = subprocess.run([str(bin_dir / 'arbol-root'),'--root','sapling','list'],
+                                     env=shell_env, cwd=home, capture_output=True, check=True)
+        if json.loads(listing_run.stdout) != {'root':'sapling','rootBuild':good['build'],
+                                             'rootPackageVersion':'1.0.0','exchanges':[],'unreadable':[]}:
+            raise ValueError('The private packaged listing has the wrong identity or contents.')
+        request = home / 'fictional request.json'
+        request.write_text('{"message":"fictional private qualification"}')
+        exchange = '7f3a2c1e-4b5d-4e6f-8a9b-0c1d2e3f4a5b'
+        started = subprocess.run([str(bin_dir / 'arbol-root'),'--root','sapling','start','fixture',
+                                  '--exchange',exchange,'--request',str(request),'--model=fictional'],
+                                 env=shell_env, cwd=home, capture_output=True, check=True, timeout=25)
+        acceptance = json.loads(started.stdout)
+        if (not acceptance.get('accepted') or acceptance.get('root') != 'sapling'
+                or acceptance.get('exchange') != exchange or acceptance.get('build') != '1' or request.exists()):
+            raise ValueError('The private packaged start did not preserve acceptance and remove the request.')
         bad = build('arbol-root', source, 'missing', succeeds=False)
         bad_log = (registry / 'arbol-root' / bad['build'] / 'build.log').read_text()
         if 'Missing regular SQL file' not in bad_log or 'roots/missing/layout.sql' not in bad_log:
@@ -93,7 +117,7 @@ def qualify(source: Path, tool: Path, cache: Path) -> dict[str, Any]:
                 'noSkippedTests':True, 'python':manifest['python'], 'source':manifest['source'],
                 'packagedFiles':{name:digest for name,digest in manifest['files'].items()
                                  if name.startswith(('src/','scripts/','tests/','bin/','contract/','roots/'))},
-                'trunks':listed, 'freshLoginName':True, 'replyBytesIdentical':True,
+                'trunks':listed, 'startAccepted':True, 'emptyListingIdentity':True, 'freshLoginName':True, 'replyBytesIdentical':True,
                 'ownerRootsChanged':False, 'vendorRequests':0, 'temporaryStateRemovedOnReturn':True}
 
 
