@@ -21,6 +21,11 @@ class Commands(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="rtm-command-")
         self.addCleanup(temporary.cleanup)
         self.home = Path(temporary.name)
+        self.development = self.home / 'development'
+        self.development.mkdir()
+        for name in ['src', 'bin']:
+            shutil.copytree(REPO / name, self.development / name, ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copy2(REPO / 'package.json', self.development / 'package.json')
         self.root_dir = self.home / "private root"
         self.root_dir.mkdir()
         (self.root_dir / "root.json").write_text('{"root":"sapling"}')
@@ -94,12 +99,12 @@ class Commands(unittest.TestCase):
 
     def test_root_selection_is_explicit_and_root_dir_requires_bin_dir(self) -> None:
         """root.identity"""
-        self.refusal(['trunks'], 'invalid_input')
+        self.refusal(['trunks'], 'invalid_input', package=self.development)
         for name in ['../sapling', 'Sapling', 'two words', 'a-b', '']:
             with self.subTest(name=name):
                 self.refusal(['trunks', '--root='+name], 'invalid_input')
         self.refusal(['trunks', '--root', 'sapling', '--root-dir', str(self.root_dir)], 'invalid_input')
-        value = identity(REPO, {'--root': 'sapling', '--root-dir': str(self.root_dir), '--bin-dir': str(self.bin_dir)})
+        value = identity(self.development, {'--root': 'sapling', '--root-dir': str(self.root_dir), '--bin-dir': str(self.bin_dir)})
         self.assertEqual((value.root, value.build, value.version), ('sapling', '0', '1.0.0'))
 
     def test_damaged_missing_nonregular_or_mismatched_root_is_unknown(self) -> None:
