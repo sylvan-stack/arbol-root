@@ -70,7 +70,7 @@ class Cli(unittest.TestCase):
     def test_a_whole_run_fails_while_scenarios_are_not_implemented(self) -> None:
         """cli.whole-run: without --only every scenario of RCT-4 runs, and one not implemented yet fails, so no
         Trunk Build passes against half a suite."""
-        result = suite("--trunk", TRUNK, "--root-contract", "1")
+        result = suite("--trunk", TRUNK + " --refuse", "--root-contract", "1")
         self.assertEqual(result.returncode, 1, result.stderr)
         lines = result.stdout.splitlines()
         self.assertEqual(lines[0], "FAIL R1 — A plain answer in the background")  # against a Trunk that does nothing
