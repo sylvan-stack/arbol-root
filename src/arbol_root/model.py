@@ -14,9 +14,10 @@ BUILD_ID = re.compile(r"[1-9a-f][0-9a-f]*\Z", re.ASCII)
 
 
 class Refusal(Exception):
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, available: list[str] | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.available = available
 
 
 def object_file(path: Path) -> dict[str, Any]:

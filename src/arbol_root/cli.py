@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 
+from arbol_root.launcher import list_reply
 from arbol_root.model import Refusal, identity
 
 OPTIONS = {"--root", "--root-dir", "--bin-dir"}
@@ -40,23 +39,9 @@ def parse(args: list[str]) -> tuple[str, list[str], dict[str, str]]:
 
 
 def trunks(root: str, code: list[str], bin_dir: Path) -> int:
-    executable = bin_dir.absolute() / "arbol-trunk"
-    env = {**os.environ, "PATH": str(bin_dir.absolute()) + os.pathsep + os.environ.get("PATH", os.defpath)}
-    try:
-        reply = subprocess.run([str(executable), "--root", root, *code, "list"], env=env,
-                               stdin=subprocess.DEVNULL, capture_output=True, check=False)
-    except (OSError, ValueError) as error:
-        raise Refusal("trunk_unavailable", f"Cannot start {executable}: {error}") from error
-    sys.stderr.buffer.write(reply.stderr)
-    for line in reply.stdout.splitlines(keepends=True):
-        try:
-            value = json.loads(line.decode("utf-8"))
-        except (UnicodeError, ValueError):
-            continue
-        if isinstance(value, dict):
-            sys.stdout.buffer.write(line)
-            return 1 if "error" in value or reply.returncode != 0 else 0
-    raise Refusal("trunk_unavailable", f"{executable} list ended without a JSON-object line.")
+    reply = list_reply(root, code, bin_dir)
+    sys.stdout.buffer.write(reply.raw)
+    return reply.status
 
 
 def main(args: list[str] | None = None, *, package: Path | None = None) -> int:
