@@ -6,14 +6,17 @@ import json
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any
 
 from arbol_root.model import Identity
+from arbol_root.process import started_at
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY: dict[str, Any] = {'root':'sapling', 'rootContract':1, 'trunks':[{'trunk':'trivial', 'builds':[
@@ -37,6 +40,9 @@ class Fixture:
                            shlex.quote(str(self.bin / 'standin.py'))+' "$@"\n')
         program.chmod(0o755)
         self.context = Identity('sapling', '0', '1.0.0', self.root, self.bin)
+        self.case = case
+        self.children: list[subprocess.Popen[bytes]] = []
+        case.addCleanup(self.end_groups)
         self.script()
 
     def script(self, **settling: object) -> None:
@@ -53,6 +59,32 @@ class Fixture:
     def calls(self) -> list[dict[str, Any]]:
         path = self.bin / 'calls.jsonl'
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def live(self, value: dict[str, Any], mode: str = 'term') -> tuple[Path, subprocess.Popen[bytes]]:
+        folder = self.put(value)
+        child = subprocess.Popen([sys.executable, '-I', '-B', str(ROOT / 'tests/exchange_process.py'), str(folder), mode],
+                                 start_new_session=True, stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.children.append(child)
+        deadline = time.monotonic()+5
+        while not (folder / 'ready').exists():
+            self.case.assertIsNone(child.poll())
+            self.case.assertLess(time.monotonic(), deadline)
+            time.sleep(0.01)
+        began = started_at(child.pid)
+        assert began is not None
+        value['process'] = {'pid':child.pid, 'startedAt':began.isoformat()}
+        (folder / 'record.json').write_text(json.dumps(value))
+        return folder, child
+
+    def end_groups(self) -> None:
+        for child in self.children:
+            if child.poll() is None:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            child.wait(timeout=5)
 
     def cli(self, *args: str) -> subprocess.CompletedProcess[bytes]:
         return subprocess.run([sys.executable, '-I', '-B', str(ROOT / 'bin/entry.py'), '--root', 'sapling',

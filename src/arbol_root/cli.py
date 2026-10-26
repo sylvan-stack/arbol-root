@@ -13,6 +13,7 @@ from arbol_root.listing import listing
 from arbol_root.model import Refusal, identity
 from arbol_root.settle import settle
 from arbol_root.start import start
+from arbol_root.stop import stop
 
 
 def parse(args: list[str]) -> Command:
@@ -39,8 +40,11 @@ def main(args: list[str] | None = None, *, package: Path | None = None) -> int:
             reply = settle(context, command.exchange)
             sys.stdout.buffer.write(reply.raw)
             return reply.status
-        if command.name != 'list':
-            raise Refusal('invalid_input', 'This command is not yet implemented.')
+        if command.name == 'stop':
+            assert command.exchange is not None
+            reply = stop(context, command.exchange, '--force' in command.options)
+            sys.stdout.buffer.write(reply.raw)
+            return reply.status
         print(json.dumps(listing(context), ensure_ascii=True))
         return 0
     except Refusal as error:

@@ -21,7 +21,8 @@ if mode in {'child', 'ignore'}:
         time.sleep(0.01)
 (folder / 'ready').touch()
 while not (folder / 'release').exists():
-    if mode in {'cooperate', 'remove'} and (folder / 'control').read_text():
+    if mode in {'cooperate', 'remove'} and any(json.loads(line).get('type') == 'stop'
+                                             for line in (folder / 'control').read_text().splitlines()):
         if mode == 'remove':
             import shutil
             shutil.rmtree(folder)
