@@ -9,6 +9,7 @@ from pathlib import Path
 from arbol_root.input import Command
 from arbol_root.input import parse as parse_command
 from arbol_root.launcher import list_reply
+from arbol_root.listing import listing
 from arbol_root.model import Refusal, identity
 from arbol_root.start import start
 
@@ -33,7 +34,8 @@ def main(args: list[str] | None = None, *, package: Path | None = None) -> int:
             reply = start(context, command)
             sys.stdout.buffer.write(reply.raw)
             return reply.status
-        raise Refusal('invalid_input', 'This command is not implemented yet.')
+        print(json.dumps(listing(context), ensure_ascii=True))
+        return 0
     except Refusal as error:
         document: dict[str, object] = {'error':{'code':error.code, 'message':str(error)}}
         if error.available is not None:
