@@ -34,9 +34,13 @@ def object_line(line: bytes) -> dict[str, Any] | None:
 
 
 def list_reply(root: str, code: list[str], bin_dir: Path) -> Reply:
+    return command_reply(root, [*code, 'list'], bin_dir, 'list')
+
+
+def command_reply(root: str, arguments: list[str], bin_dir: Path, operation: str) -> Reply:
     executable = bin_dir.absolute() / 'arbol-trunk'
     try:
-        result = subprocess.run([str(executable),'--root',root,*code,'list'], env=launcher_environment(bin_dir),
+        result = subprocess.run([str(executable),'--root',root,*arguments], env=launcher_environment(bin_dir),
                                 stdin=subprocess.DEVNULL, capture_output=True, check=False)
     except (OSError, ValueError) as error:
         raise Refusal('trunk_unavailable', f'Cannot start {executable}: {error}') from error
@@ -45,7 +49,7 @@ def list_reply(root: str, code: list[str], bin_dir: Path) -> Reply:
         value = object_line(line)
         if value is not None:
             return Reply(line, value, 1 if 'error' in value or result.returncode != 0 else 0)
-    raise Refusal('trunk_unavailable', f'{executable} list ended without a JSON-object line.')
+    raise Refusal('trunk_unavailable', f'{executable} {operation} ended without a JSON-object line.')
 
 
 def select_build(context: Identity, command: Command) -> str | Reply:
@@ -53,7 +57,11 @@ def select_build(context: Identity, command: Command) -> str | Reply:
         raise Refusal('invalid_input', 'Build selection requires a start command.')
     if '-v' in command.options:
         return command.options['-v']
-    reply = list_reply(context.root, [command.code], context.bin_dir)
+    return chosen_build(context, command.code)
+
+
+def chosen_build(context: Identity, code: str) -> str | Reply:
+    reply = list_reply(context.root, [code], context.bin_dir)
     if 'error' in reply.value:
         return reply
     try:
@@ -61,7 +69,7 @@ def select_build(context: Identity, command: Command) -> str | Reply:
         if (reply.status or value['root'] != context.root or type(value['rootContract']) is not int
                 or value['rootContract'] < 1 or not isinstance(value['trunks'], list)):
             raise ValueError
-        entries = [item for item in value['trunks'] if isinstance(item, dict) and item.get('trunk') == command.code]
+        entries = [item for item in value['trunks'] if isinstance(item, dict) and item.get('trunk') == code]
         if len(entries) != 1 or not isinstance(entries[0].get('builds'), list):
             raise ValueError
         records = entries[0]['builds']
@@ -80,5 +88,5 @@ def select_build(context: Identity, command: Command) -> str | Reply:
         raise Refusal('trunk_unavailable', 'arbol-trunk list returned an unreadable inventory for this Root/Trunk.') from None
     if not chosen:
         available = [item['build'] for item in records if item['fits'] and item['runnable']]
-        raise Refusal('no_fit', f'No chosen Build of {command.code} fits Root {context.root}.', available)
+        raise Refusal('no_fit', f'No chosen Build of {code} fits Root {context.root}.', available)
     return str(chosen[0]['build'])

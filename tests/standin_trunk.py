@@ -14,7 +14,7 @@ command = next((name for name in ['run', 'settle'] if name in sys.argv[1:]), 'li
 script = {**script, **script.get('responses', {}).get(command, {})}
 if command == 'settle':
     script = {**script, **script.get('outcomes', {}).get(sys.argv[-1], {})}
-    if 'settled' in script:
+    if 'settled' in script and 'stdout' not in script:
         script['stdout'] = json.dumps({'exchange':sys.argv[-1], 'settled':script['settled']})+'\n'
     if script.get('removeExchange'):
         shutil.rmtree(Path(script['removeExchange']) / sys.argv[-1])

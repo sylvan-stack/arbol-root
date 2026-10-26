@@ -11,6 +11,7 @@ from arbol_root.input import parse as parse_command
 from arbol_root.launcher import list_reply
 from arbol_root.listing import listing
 from arbol_root.model import Refusal, identity
+from arbol_root.settle import settle
 from arbol_root.start import start
 
 
@@ -34,6 +35,12 @@ def main(args: list[str] | None = None, *, package: Path | None = None) -> int:
             reply = start(context, command)
             sys.stdout.buffer.write(reply.raw)
             return reply.status
+        if command.name == 'settle':
+            reply = settle(context, command.exchange)
+            sys.stdout.buffer.write(reply.raw)
+            return reply.status
+        if command.name != 'list':
+            raise Refusal('invalid_input', 'This command is not yet implemented.')
         print(json.dumps(listing(context), ensure_ascii=True))
         return 0
     except Refusal as error:

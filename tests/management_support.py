@@ -1,0 +1,60 @@
+"""Disposable manager context and external launcher, shared by stop/settle tests."""
+
+from __future__ import annotations
+
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from typing import Any
+
+from arbol_root.model import Identity
+
+ROOT = Path(__file__).resolve().parents[1]
+INVENTORY: dict[str, Any] = {'root':'sapling', 'rootContract':1, 'trunks':[{'trunk':'trivial', 'builds':[
+    {'build':'a', 'status':'working', 'fits':True, 'runnable':True, 'chosen':True}]}]}
+
+
+class Fixture:
+    def __init__(self, case: unittest.TestCase) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix='root-management-')
+        case.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name).resolve()
+        self.root, self.bin = self.base / 'private root', self.base / 'private bin'
+        self.root.mkdir()
+        self.bin.mkdir()
+        (self.root / 'root.json').write_text('{"root":"sapling"}')
+        self.exchanges = self.root / 'exchanges'
+        self.exchanges.mkdir()
+        shutil.copy2(ROOT / 'tests/standin_trunk.py', self.bin / 'standin.py')
+        program = self.bin / 'arbol-trunk'
+        program.write_text('#!/bin/sh\nexec '+shlex.quote(sys.executable)+' -I -B '+
+                           shlex.quote(str(self.bin / 'standin.py'))+' "$@"\n')
+        program.chmod(0o755)
+        self.context = Identity('sapling', '0', '1.0.0', self.root, self.bin)
+        self.script()
+
+    def script(self, **settling: object) -> None:
+        (self.bin / 'script.json').write_text(json.dumps({'responses':{
+            'list':{'stdout':json.dumps(INVENTORY)+'\n'}, 'settle':{'settled':'interrupted', **settling}}}))
+
+    def put(self, record: dict[str, Any]) -> Path:
+        folder = self.exchanges / str(record['exchange'])
+        folder.mkdir(exist_ok=True)
+        (folder / 'record.json').write_text(json.dumps(record))
+        (folder / 'control').write_bytes(b'')
+        return folder
+
+    def calls(self) -> list[dict[str, Any]]:
+        path = self.bin / 'calls.jsonl'
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def cli(self, *args: str) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run([sys.executable, '-I', '-B', str(ROOT / 'bin/entry.py'), '--root', 'sapling',
+                               '--root-dir', str(self.root), '--bin-dir', str(self.bin), *args],
+                              env={**os.environ, 'HOME':str(self.base)}, capture_output=True, check=False, timeout=15)
