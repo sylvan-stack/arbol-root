@@ -49,6 +49,8 @@ def list_reply(root: str, code: list[str], bin_dir: Path) -> Reply:
 
 
 def select_build(context: Identity, command: Command) -> str | Reply:
+    if command.name != 'start' or command.code is None:
+        raise Refusal('invalid_input', 'Build selection requires a start command.')
     if '-v' in command.options:
         return command.options['-v']
     reply = list_reply(context.root, [command.code], context.bin_dir)

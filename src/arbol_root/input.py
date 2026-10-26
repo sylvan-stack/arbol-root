@@ -16,7 +16,7 @@ UUID = re.compile(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\Z', re.
 @dataclass(frozen=True)
 class Command:
     name: str
-    code: str
+    code: str | None
     options: dict[str, str]
     forward: list[str]
 
@@ -59,4 +59,4 @@ def parse(args: list[str]) -> Command:
             raise Refusal('invalid_input', 'start requires --exchange <UUID> and --request <file>.')
         if '-v' in options and not BUILD_ID.fullmatch(options['-v']):
             raise Refusal('invalid_input', '-v needs a positive lower-case hexadecimal Build number.')
-    return Command(name, words[1] if len(words) == 2 else 'trivial', options, forward)
+    return Command(name, words[1] if len(words) == 2 else ('trivial' if name == 'start' else None), options, forward)
