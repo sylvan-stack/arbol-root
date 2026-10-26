@@ -666,6 +666,14 @@ def r15_file(run: Run) -> int:
     return run.finished("completed")
 
 
+def r18(run: Run) -> int:
+    run.started()
+    run.child()  # a background command does not keep the Trivial Trunk's idle clock open
+    run.text("Half an answer before silence.")
+    run.usage(inputTokens=7, outputTokens=3)
+    run.wait_for_stop()
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -701,6 +709,7 @@ SCRIPTS: dict[str, Script] = {
     "R15 tool": r15_tool,
     "R15 file": r15_file,
     "R17": r17,
+    "R18": r18,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
