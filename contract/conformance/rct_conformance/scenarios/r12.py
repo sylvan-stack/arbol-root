@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from ..home import ScenarioHome
-from ..judge import equal, wait_until
+import time
+
+from ..home import TIME_SCALE, ScenarioHome
+from ..judge import check, equal, wait_until
 from .r1 import END_SECONDS, accepted
+from .r13 import settled, tables
 
 
 def run(home: ScenarioHome) -> None:
     during_work(home)
+    through_the_end(home)
 
 
 def during_work(home: ScenarioHome) -> None:
@@ -45,3 +49,35 @@ def judge_saved(home: ScenarioHome, exchange: str) -> None:
           "The saved run and its usage")
     equal(home.rows(f"SELECT state, error FROM exchanges WHERE id = '{exchange}'"),
           [{"state": "completed", "error": None}], "The saved end")
+
+
+def through_the_end(home: ScenarioHome) -> None:
+    home.part("end")
+    started = home.start()
+    accepted(started)
+    exchange = started.exchange
+    home.server.stop()  # immediately after acceptance, before any later database read can succeed
+    before = home.record(exchange)["signsOfLife"]["heartbeat"]
+    time.sleep(61 / TIME_SCALE)
+    equal(started.process.poll(), None, "The Driver remains working after 60 seconds without PostgreSQL")
+    check(home.record(exchange)["signsOfLife"]["heartbeat"] > before,
+          "The work loop stopped raising signs of life while PostgreSQL was away.")
+    home.release()
+    wait_until(lambda: home.record(exchange).get("end"), END_SECONDS, "the end to reach the record without PostgreSQL")
+    began = time.monotonic()
+    equal(started.process.wait(timeout=END_SECONDS), 0, "The Trunk ends after its bounded final tries")
+    check(time.monotonic() - began < 60 / TIME_SCALE + 6, "The final database tries exceeded their budget.")
+    check(exchange in home.folders(), "The unsaved Exchange lost its recovery folder.")
+    record = home.record(exchange)
+    lines = home.events(exchange)
+    equal(lines[-1]["end"], record["end"], "The end is recoverable from both file and record")
+    equal(record["end"]["state"], "completed", "A Trunk needing no further history can complete without PostgreSQL")
+    check(any(line.get("event", {}).get("type") == "usage" for line in lines),
+          "The Driver's later output was lost while PostgreSQL was away.")
+    home.server.start()
+    settled(home.run(["settle", exchange]), exchange, "completed")
+    judge_saved(home, exchange)
+    check(exchange not in home.folders(hidden=True), "Settling left the recovered folder.")
+    before_tables = tables(home, exchange)
+    settled(home.run(["settle", exchange]), exchange, "none")
+    equal(tables(home, exchange), before_tables, "Repeated settling changes no recovered row")
