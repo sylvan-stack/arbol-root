@@ -574,6 +574,14 @@ def r13(run: Run) -> int:
     return run.finished("completed")
 
 
+def r14(run: Run) -> int:
+    run.started()
+    run.text(run.standin.part + " answer")
+    run.shell("echo " + run.standin.part, run.standin.part)
+    run.usage(inputTokens=41, outputTokens=4)
+    return run.finished("completed")
+
+
 def r19_small_fails(run: Run) -> int:
     """R19 "fails": a small call, such as a title, that fails with a rate limit."""
     run.started()
@@ -607,6 +615,9 @@ SCRIPTS: dict[str, Script] = {
     "R9": r9,
     "R10": r10,
     "R13": r13,
+    "R14": r14,
+    "R14 open": r3_busy,
+    "R14 race": r3_busy,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
