@@ -22,6 +22,7 @@ uv run --no-sync python -B -m unittest discover -s tests -t tests
 uv run --no-sync python -B -m unittest discover -s contract/conformance/tests -t contract/conformance
 uv run --no-sync ruff check .
 uv run --no-sync mypy
+uv run --no-sync python -B scripts/verify_build.py
 ```
 
 ## Sylvan Stack 2
