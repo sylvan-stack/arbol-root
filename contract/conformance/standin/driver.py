@@ -616,6 +616,20 @@ def r11_not_signed_in(run: Run) -> int:
                                          "retryable": False})
 
 
+def r12(run: Run) -> int:
+    """Output continues while PostgreSQL is away; the suite controls the two boundaries."""
+    run.started()
+    run.text("Before the database went away.")
+    run.hold()
+    run.text("Written while the database was away.")
+    run.shell("cat build.sh", "#!/bin/sh\nset -e\n")
+    run.usage(inputTokens=31, outputTokens=9)
+    if run.standin.part == "middle":
+        while not (run.standin.folder / "finish").exists():
+            run.silence(1)
+    return run.finished("completed")
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -647,6 +661,7 @@ SCRIPTS: dict[str, Script] = {
     "R11 rate_limited": selftest_fail,
     "R11 not_signed_in": r11_not_signed_in,
     "R11 folder": selftest_child,
+    "R12": r12,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
