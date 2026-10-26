@@ -59,7 +59,8 @@ class Package(unittest.TestCase):
         manifest = json.loads((self.folder / 'package-manifest.json').read_text())
         self.assertEqual((manifest['build'], manifest['candidate'], manifest['dependencies']), ('0',True,{}))
         for name in ['bin/arbol-root', 'src/arbol_root/cli.py', 'tests/standin_trunk.py', 'scripts/build.py',
-                     'contract/1/layout.sql', 'contract/conformance/tests/test_layout.py', 'roots/sapling/layout.sql',
+                     'contract/1/layout.sql', 'contract/conformance/tests/test_layout.py',
+                     'contract/conformance/specifications/03-the-chat-tables.md', 'roots/sapling/layout.sql',
                      'runtime/python/bin/python3.14']:
             self.assertEqual(manifest['files'][name], digest(self.folder / name))
         with self.assertRaisesRegex(ValueError, 'already holds'):

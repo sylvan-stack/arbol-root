@@ -62,11 +62,19 @@ def package(candidate: str | None = None, *, root: Path = ROOT) -> Path:
                            check=True, capture_output=True, text=True, cwd=folder)
     if probe.stdout.strip() != pin['version']:
         raise ValueError('The unpacked interpreter has the wrong version.')
+    specification = root / 'contract/conformance/specifications/03-the-chat-tables.md'
+    if not specification.is_file():
+        specification = Path.home() / 'Artifacts/arbol-root/contract/03-the-chat-tables.md'
+    if not specification.is_file():
+        raise ValueError('The authoritative RCT-3 document is required for the packaged schema check.')
     ignore = shutil.ignore_patterns('__pycache__', '*.pyc', '.DS_Store')
     for name in ['src', 'scripts', 'tests', 'bin', 'contract', 'roots']:
         shutil.copytree(root / name, folder / name, ignore=ignore)
     for name in ['package.json', 'pyproject.toml', '.python-version', 'uv.lock', 'arbol-build.json', 'README.md']:
         shutil.copy2(root / name, folder / name)
+    oracle = folder / 'contract/conformance/specifications/03-the-chat-tables.md'
+    oracle.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(specification, oracle)
     manifest = {'format':1, 'component':'arbol-root', 'packageVersion':version, 'entry':'bin/arbol-root',
                 'build':number, 'root':selected, 'candidate':candidate is not None, 'source':provenance(root),
                 'python':{'version':pin['version'], 'target':architecture, 'provider':pin['provider'],

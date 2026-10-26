@@ -17,7 +17,9 @@ CONTRACT = CONFORMANCE.parent
 LAYOUT = CONTRACT / "1" / "layout.sql"
 CLI = CONFORMANCE / "bin" / "rct-conformance.py"
 FAKE_TRUNK = [sys.executable, "-I", "-B", str(CONFORMANCE / "tests" / "fake_trunk.py")]
-SPECIFICATION = Path.home() / "Artifacts" / "arbol-root" / "contract" / "03-the-chat-tables.md"
+EMBEDDED_SPECIFICATION = CONFORMANCE / "specifications" / "03-the-chat-tables.md"
+SPECIFICATION = (EMBEDDED_SPECIFICATION if EMBEDDED_SPECIFICATION.is_file()
+                 else Path.home() / "Artifacts/arbol-root/contract/03-the-chat-tables.md")
 
 
 def psql() -> str:

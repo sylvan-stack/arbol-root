@@ -45,6 +45,8 @@ All scenarios of contract 1 are implemented. For a later contract or a new check
 3. Add the scenario's scripts to `SCRIPTS` in `standin/driver.py`, under "<scenario> <part>" or "<scenario>". A script is a function of a `Run`: `started()`, `text()`, `tool()`, `shell()`, `open_tool()`, `ask()`, `usage()`, `silence(seconds)` (divided by the time scale), `hold()` (until the suite's `home.release()`), `child()`, `wait_for_stop()` and `finished(outcome)`. A stop line, the end of the control input, SIGTERM, SIGINT and `runs stop` stop a run as a Driver does. A run with `"tools": "none"` and no chat session plays "<scenario> <part> small", else "<scenario> small", else the title "Stand-in title".
 4. Name the scenario's check in the requirement tables of RCT-0 to RCT-3.
 
+Packaged manager Builds include the authoritative RCT-3 document under `contract/conformance/specifications/03-the-chat-tables.md`. The layout/interface check uses it, or the development corpus under HOME, and fails if neither exists. Its fictional Trunk command quotes each argument, so the checks also run under paths with spaces.
+
 ## The suite's own tests
 
 ```sh

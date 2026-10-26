@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -14,11 +16,17 @@ from typing import Any
 
 def qualify(source: Path, tool: Path, cache: Path) -> dict[str, Any]:
     source, tool, cache = source.resolve(), tool.resolve(), cache.resolve()
+    specification = source / 'contract/conformance/specifications/03-the-chat-tables.md'
+    if not specification.is_file():
+        specification = Path.home() / 'Artifacts/arbol-root/contract/03-the-chat-tables.md'
     with tempfile.TemporaryDirectory(prefix='rtm-private-build-') as temporary:
         home = Path(temporary).resolve()
         registry, bin_dir = home / 'registry with spaces', home / '.local/bin'
         env = {'HOME':str(home), 'PATH':os.environ.get('PATH', os.defpath), 'LANG':'en_US.UTF-8',
                'ARBOL_PYTHON_ARCHIVE_CACHE':str(cache)}
+        oracle = home / 'Artifacts/arbol-root/contract/03-the-chat-tables.md'
+        oracle.parent.mkdir(parents=True)
+        shutil.copy2(specification, oracle)
         roots = home / 'Library/Application Support/Arbol/roots'
         for name, state in [('sapling','working'), ('missing','preparing')]:
             folder = roots / name
@@ -75,10 +83,14 @@ def qualify(source: Path, tool: Path, cache: Path) -> dict[str, Any]:
         bad_log = (registry / 'arbol-root' / bad['build'] / 'build.log').read_text()
         if 'Missing regular SQL file' not in bad_log or 'roots/missing/layout.sql' not in bad_log:
             raise ValueError('The missing-layout Build failed for an unexpected reason.')
+        unit_log = (folder / 'build.log').read_text()
+        if re.search(r'skipped=\d+', unit_log):
+            raise ValueError('The private manager Build skipped a required unit check.')
         manifest = json.loads((folder / 'package-manifest.json').read_text())
         # Save evidence outside git; temporary homes, registry and fictional Git repo are removed on return.
         return {'check':'root.private-build', 'working':good['build'], 'failedMissingLayout':bad['build'],
-                'checks':good['checks'], 'python':manifest['python'], 'source':manifest['source'],
+                'checks':good['checks'], 'unitSummaries':re.findall(r'Ran \d+ tests in [\d.]+s', unit_log),
+                'noSkippedTests':True, 'python':manifest['python'], 'source':manifest['source'],
                 'packagedFiles':{name:digest for name,digest in manifest['files'].items()
                                  if name.startswith(('src/','scripts/','tests/','bin/','contract/','roots/'))},
                 'trunks':listed, 'freshLoginName':True, 'replyBytesIdentical':True,

@@ -68,8 +68,7 @@ class Layout(unittest.TestCase):
 
     def test_the_file_is_the_interface_of_rct_3(self) -> None:
         """layout.the-interface: contract/1/layout.sql is, byte for byte, the file in RCT-3's Interface."""
-        if not SPECIFICATION.is_file():
-            self.skipTest(f"{SPECIFICATION} is not on this Mac")
+        self.assertTrue(SPECIFICATION.is_file(), f"Required RCT-3 specification oracle is missing: {SPECIFICATION}")
         interface = SPECIFICATION.read_text(encoding="utf-8").split("\n## Interface\n", 1)[1]
         match = re.search(r"```sql\n(.*?)```", interface, re.S)
         assert match is not None
