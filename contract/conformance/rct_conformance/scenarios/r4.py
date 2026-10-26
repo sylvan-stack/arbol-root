@@ -6,7 +6,7 @@ import os
 import signal
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any
 
 from ..home import ROUTE, Completed, ScenarioHome, Started
@@ -84,3 +84,50 @@ def run(home: ScenarioHome) -> None:
           [{"role": "user", "text": "accepted after abandonment"}], "The reclaimed start's new message")
     equal(len([r for r in home.received() if r.get("part") == "recovered"]), 1,
           "Only the reclaimed start reached the Driver")
+    together(home)
+    closed_pipe(home)
+
+
+def together(home: ScenarioHome) -> None:
+    home.part("together")
+    exchange = str(uuid.uuid4())
+    with ThreadPoolExecutor(2) as pool:
+        with home.acceptances_held():
+            futures = [pool.submit(home.start, text, exchange=exchange) for text in ("first", "second")]
+            done, pending = wait(futures, timeout=END_SECONDS, return_when=FIRST_COMPLETED)
+            check(len(done) == len(pending) == 1, "Two simultaneous starts did not leave one acceptance pending.")
+            loser = next(iter(done)).result()
+            equal(loser.answer.get("error", {}).get("code"), "in_progress", "The simultaneous start's refusal")
+            equal(loser.process.wait(5), 1, "The simultaneous start's refusal status")
+            check(loser.seconds < 15, "The simultaneous-start refusal was late.")
+            equal(home.folders(hidden=True), [exchange], "The winner's one folder")
+            equal(home.rows(f"SELECT id FROM exchanges WHERE id = '{exchange}'"), [], "The pending acceptance")
+        winner = next(iter(pending)).result(timeout=END_SECONDS)
+    finished(home, winner)
+    equal(len(home.rows(f"SELECT id FROM exchanges WHERE id = '{exchange}'")), 1, "The one accepted Exchange")
+    equal(len([r for r in home.received() if r.get("part") == "together"]), 1,
+          "The Driver starts for simultaneous submissions")
+
+
+def closed_pipe(home: ScenarioHome) -> None:
+    home.part("closed pipe")
+    exchange = str(uuid.uuid4())
+    file = home.request_file({"route": ROUTE, "message": MESSAGE})
+    process = home.spawn(["run", "--detach", "--exchange", exchange, "--request", str(file)])
+    assert process.stdout is not None
+    process.stdout.close()  # the starter disappears without reading even the acceptance line
+    rows = wait_until(lambda: home.rows("SELECT id::text, chat_id::text, number, trunk, build"
+                                       f" FROM exchanges WHERE id = '{exchange}'"), END_SECONDS,
+                      "the acceptance whose pipe was closed")
+    stored = rows[0]
+    expected = {"accepted": True, "duplicate": False, "root": "rct", "exchange": exchange,
+                "chat": stored["chat_id"], "number": stored["number"], "trunk": stored["trunk"], "build": stored["build"]}
+    duplicate(repeat(home, exchange), expected)
+    home.release()
+    wait_until(lambda: exchange not in home.folders(hidden=True), END_SECONDS, "the closed-pipe Exchange to finish")
+    equal(process.wait(5), 0, "The closed-pipe start's exit status")
+    equal(home.rows(f"SELECT state FROM exchanges WHERE id = '{exchange}'"), [{"state": "completed"}],
+          "The closed-pipe Exchange's state")
+    equal(len([r for r in home.received() if r.get("part") == "closed pipe"]), 1,
+          "The Driver starts after losing and repeating an acceptance")
+    file.unlink(missing_ok=True)
