@@ -643,6 +643,17 @@ def r17(run: Run) -> int:
     return run.finished("completed")
 
 
+def r15_tool(run: Run) -> int:
+    run.started()
+    run.hold()
+    call = run.open_tool("shell", {"command": "cat a-large-log"})
+    for _ in range(32):
+        run.event("tool_output_delta", callId=call, text="x" * 65536)
+    run.finish_tool(call, result={"output": "x" * (200 * 1024), "exitCode": 0}, truncated=True)
+    run.text("The large log was read.")
+    return run.finished("completed")
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -675,6 +686,7 @@ SCRIPTS: dict[str, Script] = {
     "R11 not_signed_in": r11_not_signed_in,
     "R11 folder": selftest_child,
     "R12": r12,
+    "R15 tool": r15_tool,
     "R17": r17,
     "R19": r19,
     "R19 fails small": r19_small_fails,
