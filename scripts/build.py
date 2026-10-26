@@ -50,7 +50,11 @@ def main() -> int:
         record = build_record(folder)
         if os.environ.get("ARBOL_BUILD_NUMBER") != record["build"]:
             raise ValueError("ARBOL_BUILD_NUMBER must match the adjacent Build record.")
-        copy_layout(folder)
+        layout = copy_layout(folder)
+        if (folder / "package-manifest.json").is_file():
+            sys.path.insert(0, str(ROOT))
+            from scripts.package_support import write_manifest
+            write_manifest(folder, layout)
     except (OSError, ValueError, KeyError) as error:
         print(f"Cannot copy this Root's layout: {error}", file=sys.stderr)
         return 1
