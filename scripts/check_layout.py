@@ -11,10 +11,12 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / 'src'))
 sys.path.insert(0, str(ROOT / 'contract/conformance'))
 from rct_conformance.postgres import SqlError  # noqa: E402
 from rct_conformance.tables import catalog  # noqa: E402
 
+from scripts.layout_compatibility import check_previous  # noqa: E402
 from scripts.package_support import verify  # noqa: E402
 from scripts.sql_statements import layout_statements  # noqa: E402
 from scripts.sql_support import BuildInput, SqlLab, private_server  # noqa: E402
@@ -47,7 +49,8 @@ def run_layout(inputs: BuildInput, lab: SqlLab) -> dict[str, Any]:
         lab.run_file(database, file)
     if catalog(lab.server, database) != before or lab.dump(database) != dumped:
         raise ValueError('Repeating the two layouts changed the schema.')
-    return {'check':'layout', 'root':inputs.root, 'repeated':True, 'earlierBuild':None}
+    previous = check_previous(inputs, lab, database)
+    return {'check':'layout', 'root':inputs.root, 'repeated':True, 'earlierBuild':previous}
 
 
 def main() -> int:

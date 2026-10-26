@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -89,3 +90,15 @@ class LayoutCheck(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_layout(inputs, self.lab)
         create.assert_not_called()
+
+    def test_check_entry_bootstraps_its_own_source_path_before_refusing_an_incomplete_image(self) -> None:
+        """root.layout-entry"""
+        with tempfile.TemporaryDirectory(prefix='root-layout-entry-') as temporary:
+            folder = Path(temporary)
+            for name in ['src','scripts','contract']:
+                shutil.copytree(ROOT / name,folder / name,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+            answer = subprocess.run([sys.executable,'-I','-B',str(folder / 'scripts/check_layout.py')],
+                                    capture_output=True,text=True,check=False,timeout=10)
+            self.assertEqual(answer.returncode,1)
+            self.assertIn('layout check failed:',answer.stderr)
+            self.assertNotIn('Traceback',answer.stderr)
