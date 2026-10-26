@@ -10,6 +10,7 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,7 @@ sys.path.insert(0,str(ROOT / 'contract/conformance'))
 from drill_support import Budget, Commands, DrillError, Inspector, Places, new_json, wait_for  # noqa: E402
 from rct_conformance.postgres import Server  # noqa: E402
 from sapling_creation import make_sapling  # noqa: E402
+from sapling_messages import judge, real_messages  # noqa: E402
 
 
 class Frame(unittest.TestCase):
@@ -218,3 +220,119 @@ class Creation(unittest.TestCase):
                 make_sapling(self.places,self.home/'branch',commands=self.calls)
         self.assertEqual(self.calls.run.call_count,1)
         self.assertFalse(self.places.evidence.exists())
+
+
+class MessageCommands(Commands):
+    def __init__(self, places: Places, *, fail_start: bool = False) -> None:
+        super().__init__(places,login=False)
+        self.fail_start = fail_start
+        self.starts = 0
+        self.requests: list[dict[str, Any]] = []
+        self.chat = str(uuid.uuid4())
+
+    def run(self, program: str, *arguments: str, **options: Any) -> Any:
+        if program == 'arbol-roots':
+            return {'root':'sapling','status':'working'}
+        if program == 'arbol-claude-driver':
+            return {'state':'signed_in'} if 'check' in arguments else {
+                'outcome':'ok','windows':[{'kind':'session','usedPercent':0,'limitReached':False}]}
+        if 'start' in arguments:
+            self.starts += 1
+            if self.fail_start:
+                raise DrillError('ambiguous acceptance')
+            request = Path(arguments[arguments.index('--request')+1])
+            value = json.loads(request.read_text())
+            exchange = arguments[arguments.index('--exchange')+1]
+            self.requests.append({'request':value,'arguments':arguments,'exchange':exchange})
+            request.unlink()
+            return {'accepted':True,'duplicate':False,'root':'sapling','exchange':exchange,'chat':self.chat,
+                    'number':self.starts,'trunk':'trivial','build':'3'}
+        return {'exchanges':[{'exchange':self.requests[-1]['exchange'],'state':'running'}] if self.requests else [],
+                'unreadable':[]}
+
+    def data(self) -> dict[str, Any]:
+        last = self.requests[-1]
+        word = self.requests[0]['request']['message'].split('chat: ')[1].split('.')[0]
+        answer = 'remembered' if len(self.requests) == 1 else word
+        return {'exchange':{'id':last['exchange'],'chat_id':self.chat,'number':len(self.requests),'state':'completed',
+                            'trunk':'trivial','build':'3','route':last['request']['route']},
+                'messages':[{'position':0,'role':'user','text':last['request']['message']},
+                            {'position':1,'role':'assistant','text':answer}],
+                'runs':[{'outcome':'completed','usage':{'inputTokens':10,'outputTokens':3,'costUSD':0.001}}]}
+
+
+class Messages(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix='private sapling messages ')
+        self.addCleanup(temporary.cleanup)
+        home = Path(temporary.name).resolve()
+        self.places = Places(home,home/'bin',home/'evidence')
+        self.calls = MessageCommands(self.places)
+        self.inspector = mock.Mock(spec=Inspector)
+        self.inspector.read.side_effect = lambda _sql:self.calls.data()
+        self.inspector.counts.return_value = {'chats':1,'exchanges':2,'messages':4,'runs':2,'tool_calls':0}
+
+    def test_preflight_does_not_submit_and_two_explicit_submissions_keep_the_same_chat(self) -> None:
+        """sapling.messages"""
+        preflight = real_messages(self.places,commands=self.calls)
+        self.assertTrue(preflight['preflightOnly'])
+        self.assertEqual(self.calls.starts,0)
+        result = real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+        self.assertEqual(result['submissions'],2)
+        self.assertEqual(result['budget']['remaining'],8)
+        self.assertEqual(result['reportedCostUSD'],'0.002')
+        self.assertEqual([item['number'] for item in result['messages']],[1,2])
+        self.assertNotIn('--chat',self.calls.requests[0]['arguments'])
+        self.assertIn('--chat',self.calls.requests[1]['arguments'])
+        self.assertTrue(result['messages'][1]['remembered'])
+
+    def test_ambiguous_start_counts_and_is_never_automatically_retried(self) -> None:
+        """sapling.messages-ambiguous"""
+        self.calls.fail_start = True
+        with self.assertRaisesRegex(DrillError,'ambiguous acceptance'):
+            real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+        self.assertEqual(self.calls.starts,1)
+        status = Budget(self.places.evidence).status()
+        self.assertEqual(status['usedOrReserved'],1)
+        self.assertEqual(status['attempts'][0]['state'],'ambiguous')
+
+    def test_no_two_message_allowance_means_no_submission(self) -> None:
+        """sapling.messages-allowance"""
+        for _ in range(9):
+            Budget(self.places.evidence).reserve(str(uuid.uuid4()))
+        with self.assertRaises(DrillError):
+            real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+        self.assertEqual(self.calls.starts,0)
+
+    def test_reached_or_unavailable_usage_never_submits(self) -> None:
+        """sapling.messages-usage"""
+        original = self.calls.run
+        reports: list[dict[str,Any]] = [{'outcome':'unavailable','windows':[]},
+                                       {'outcome':'ok','windows':[{'limitReached':True}]},
+                                       {'outcome':'ok','windows':[{'usedPercent':100}]}]
+        for report in reports:
+            def run(program: str, *args: str, selected: dict[str, Any] = report, **options: Any) -> Any:
+                if program == 'arbol-claude-driver' and 'usage' in args:
+                    return selected
+                return original(program,*args,**options)
+            with mock.patch.object(self.calls,'run',side_effect=run):
+                with self.assertRaises(DrillError):
+                    real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+        self.assertEqual(self.calls.starts,0)
+
+    def test_judgement_refuses_lost_history_wrong_route_or_missing_usage(self) -> None:
+        """sapling.messages-judgement"""
+        request = self.places.evidence/'request.json'
+        new_json(request,{'message':'Remember this word for this chat: pinefixture. Reply remembered.',
+                          'route':{'driver':'claude','subscription':'anthropic','model':'haiku'}})
+        accepted = self.calls.run('arbol-root','start','--exchange',str(uuid.uuid4()),'--request',str(request))
+        good = self.calls.data()
+        for case in ['word','route','tokens']:
+            data = json.loads(json.dumps(good))
+            if case == 'route':
+                data['exchange']['route']['model'] = 'other'
+            elif case == 'tokens':
+                data['runs'][0]['usage'] = {}
+            with self.subTest(case=case),self.assertRaises(DrillError):
+                judge(data,accepted,self.calls.requests[0]['request']['message'],1,
+                      remembered='not-the-remembered-word' if case == 'word' else None)
