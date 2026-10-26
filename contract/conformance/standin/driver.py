@@ -610,6 +610,12 @@ def r19_small_fails(run: Run) -> int:
 
 # A script by the scenario and its part, such as "R8 tool", or by the scenario alone. "<scenario> small" (or
 # "<scenario> <part> small") is the script of a run with no tools and no chat session; without one, `title`.
+def r11_not_signed_in(run: Run) -> int:
+    """A route refusal may be the only event, without a started event."""
+    return run.finished("failed", error={"code": "not_signed_in", "message": "Sign in to this Subscription.",
+                                         "retryable": False})
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -638,6 +644,9 @@ SCRIPTS: dict[str, Script] = {
     "R14": r14,
     "R14 open": r3_busy,
     "R14 race": r3_busy,
+    "R11 rate_limited": selftest_fail,
+    "R11 not_signed_in": r11_not_signed_in,
+    "R11 folder": selftest_child,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }
