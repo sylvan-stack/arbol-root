@@ -13,6 +13,7 @@ MIB = 1024 * 1024
 
 def run(home: ScenarioHome) -> None:
     tool_output(home)
+    whole_file(home)
 
 
 def tool_output(home: ScenarioHome) -> None:
@@ -47,3 +48,70 @@ def tool_output(home: ScenarioHome) -> None:
     equal(home.rows(f"SELECT state FROM exchanges WHERE id = '{exchange}'"), [{"state": "completed"}],
           "The stored end")
     check(exchange not in home.folders(hidden=True), "The limited tool output left its folder.")
+
+
+def whole_file(home: ScenarioHome) -> None:
+    home.part("file")
+    started = home.start()
+    accepted(started)
+    exchange = started.exchange
+    follow = home.follow(exchange)
+    starts: dict[str, int] = {}
+    closed: set[str] = set()
+    total = 0
+    closing_bytes = 0
+    count = 0
+    previous_seq = 0
+    limited = False
+    end = None
+    try:
+        home.release()
+        equal(started.process.wait(timeout=120), 1, "The full-file Trunk's exit status")
+        for raw in follow.stream:  # inspect the full 256 MiB without keeping it in the judge's memory
+            check(raw.endswith(b"\n"), "The full file has an unfinished line.")
+            check(end is None, "A line follows the Exchange end.")
+            total += len(raw)
+            count += 1
+            line = json.loads(raw)
+            equal(line["n"], count, "The full file's consecutive n")
+            event = line.get("event")
+            if isinstance(event, dict):
+                kind = event["type"]
+                seq = event["seq"]
+                if seq > previous_seq + 1:
+                    limited = True
+                previous_seq = seq
+                if kind == "tool_started":
+                    starts[event["callId"]] = count
+                if kind == "tool_finished":
+                    check(event["callId"] in starts, "A closing call has no written start.")
+                    closed.add(event["callId"])
+                if limited:
+                    check(kind in ("tool_finished", "ask_closed", "usage", "finished"),
+                          "The full file kept a new non-closing event.")
+                if kind in ("tool_finished", "ask_closed", "usage", "finished"):
+                    closing_bytes += len(raw)
+            elif "end" in line:
+                end = line["end"]
+                closing_bytes += len(raw)
+            else:
+                check(False, "An unexpected line followed the file limit.")
+    finally:
+        follow.close()
+    check(limited, "No streamed event was omitted at the whole-file cap.")
+    check(256 * MIB - 128 * 1024 <= total <= 256 * MIB + closing_bytes,
+          "The events file was not bounded at 256 MiB plus closing lines.", 256 * MIB, total)
+    check(isinstance(end, dict), "The full file has no end.")
+    assert end is not None
+    equal((end["state"], end["error"]["code"]), ("failed", "events_file_full"), "The full file's failure")
+    equal(sorted(closed), sorted(starts), "Every started call got its closing line")
+    rows = home.rows(f"SELECT position, ok, interrupted FROM tool_calls WHERE exchange_id = '{exchange}' ORDER BY position")
+    equal(len(rows), 2, "Both calls were saved")
+    check(all(row["position"] in starts.values() for row in rows), "A saved call has no start in the file.")
+    equal([(row["ok"], row["interrupted"]) for row in rows], [(True, False), (False, True)],
+          "The completed and interrupted calls remain truthful")
+    equal(home.rows(f"SELECT text FROM messages WHERE exchange_id = '{exchange}' AND position > 0"),
+          [{"text": "Saved before the file filled."}], "What finished before the cap was saved")
+    row = home.rows(f"SELECT state, error FROM exchanges WHERE id = '{exchange}'")[0]
+    equal((row["state"], row["error"]["code"]), ("failed", "events_file_full"), "The saved full-file failure")
+    check(exchange not in home.folders(hidden=True), "The full file was not saved and removed.")

@@ -654,6 +654,18 @@ def r15_tool(run: Run) -> int:
     return run.finished("completed")
 
 
+def r15_file(run: Run) -> int:
+    run.started()
+    run.hold()
+    run.text("Saved before the file filled.")
+    run.shell("printf ready", "ready")
+    run.open_tool("shell", {"command": "a-long-running-command"})
+    run.usage(inputTokens=20, outputTokens=5)
+    for _ in range(8192):  # at most 512 MiB if a broken Trunk never stops; each loop still reads control
+        run.event("text_delta", text="x" * 65536)
+    return run.finished("completed")
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -687,6 +699,7 @@ SCRIPTS: dict[str, Script] = {
     "R11 folder": selftest_child,
     "R12": r12,
     "R15 tool": r15_tool,
+    "R15 file": r15_file,
     "R17": r17,
     "R19": r19,
     "R19 fails small": r19_small_fails,
