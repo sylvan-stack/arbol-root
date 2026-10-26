@@ -15,7 +15,8 @@ from scripts.sql_support import BuildInput, private_server  # noqa: E402
 
 
 class SqlSupport(unittest.TestCase):
-    def image(self, base: Path, *, older: str | None = None) -> Path:
+    @staticmethod
+    def image(base: Path, *, older: str | None = None) -> Path:
         folder = base / 'image'
         folder.mkdir()
         (folder / 'package.json').write_text('{"version":"1.0.0"}')
