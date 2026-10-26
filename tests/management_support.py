@@ -15,6 +15,8 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from program_support import development
+
 from arbol_root.model import Identity
 from arbol_root.process import started_at
 
@@ -28,6 +30,7 @@ class Fixture:
         temporary = tempfile.TemporaryDirectory(prefix='root-management-')
         case.addCleanup(temporary.cleanup)
         self.base = Path(temporary.name).resolve()
+        self.development = development(self.base)
         self.root, self.bin = self.base / 'private root', self.base / 'private bin'
         self.root.mkdir()
         self.bin.mkdir()
@@ -97,6 +100,6 @@ class Fixture:
             child.wait(timeout=5)
 
     def cli(self, *args: str) -> subprocess.CompletedProcess[bytes]:
-        return subprocess.run([sys.executable, '-I', '-B', str(ROOT / 'bin/entry.py'), '--root', 'sapling',
+        return subprocess.run([sys.executable, '-I', '-B', str(self.development / 'bin/entry.py'), '--root', 'sapling',
                                '--root-dir', str(self.root), '--bin-dir', str(self.bin), *args],
                               env={**os.environ, 'HOME':str(self.base)}, capture_output=True, check=False, timeout=15)

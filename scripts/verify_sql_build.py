@@ -88,8 +88,14 @@ def qualify(source: Path, tool: Path, cache: Path, output: Path, selected: str |
                 raise ValueError(f'The private {name} Build failed; see {output}.')
             manifest = json.loads((folder / 'package-manifest.json').read_text())
             (output / (name+'-manifest.json')).write_text(json.dumps(manifest,indent=2)+'\n')
+            listed = subprocess.run([str(folder / 'bin/arbol-root'),'list'],env=env,cwd=home,
+                                    capture_output=True,text=True,check=True,timeout=15)
+            if json.loads(listed.stdout) != {'root':name,'rootBuild':value['build'],'rootPackageVersion':'1.0.0',
+                                             'exchanges':[],'unreadable':[]}:
+                raise ValueError('The real packaged manager did not retain its adjacent Root/Build identity.')
             reports[name] = {'build':value['build'],'checks':value['checks'],
-                             'unitSummaries':re.findall(r'Ran \d+ tests in [\d.]+s',log),'source':manifest['source']}
+                             'unitSummaries':re.findall(r'Ran \d+ tests in [\d.]+s',log),'source':manifest['source'],
+                             'packagedListingIdentity':True}
         # A copied candidate keeps the real earlier working descendant in the registry.
         earlier = registry / 'arbol-root' / reports[selected]['build']
         number = format(int(earlier.name,16)+1,'x')
