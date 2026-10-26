@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .home import ScenarioHome
-from .scenarios import r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r19
+from .scenarios import r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r13, r14, r19
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("R8", "Stop", ("RCT-1.7", "2.7"), r8.run),
     Scenario("R9", "An answer to a question", ("RCT-1.7", "1.11"), r9.run),
     Scenario("R10", "The termination signal in the middle of a run", ("RCT-2.8", "2.12"), r10.run),
-    Scenario("R11", "Failures", ("RCT-2.9", "2.10", "2.20")),
+    Scenario("R11", "Failures", ("RCT-2.9", "2.10", "2.20"), r11.run),
     Scenario("R12", "The database away", ("RCT-2.11", "2.12")),
     Scenario("R13", "Settling at its edges", ("RCT-1.9", "2.12", "3.4"), r13.run),
     Scenario("R14", "Sending again", ("RCT-2.13", "3.4", "3.9"), r14.run),
