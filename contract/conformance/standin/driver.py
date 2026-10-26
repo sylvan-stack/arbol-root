@@ -93,7 +93,7 @@ class StandIn:
                   "arguments": self.arguments, "request": self.request, "control": self.control,
                   "events": self.events, "signals": self.signals, "workingDirectory": os.getcwd()}
         self.folder.mkdir(parents=True, exist_ok=True)
-        line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8", "surrogatepass")
+        line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8", "backslashreplace")
         descriptor = os.open(self.folder / "received.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
         try:
             os.write(descriptor, line)
@@ -210,7 +210,7 @@ class Run:
             event["labels"] = self.labels
         event["type"] = kind
         event.update(fields)
-        line = json.dumps(event, ensure_ascii=False)
+        line = json.dumps(event, ensure_ascii=False).encode("utf-8", "backslashreplace").decode("utf-8")
         try:
             sys.stdout.write(line + "\n")
             sys.stdout.flush()
@@ -610,6 +610,39 @@ def r19_small_fails(run: Run) -> int:
 
 # A script by the scenario and its part, such as "R8 tool", or by the scenario alone. "<scenario> small" (or
 # "<scenario> <part> small") is the script of a run with no tools and no chat session; without one, `title`.
+def r11_not_signed_in(run: Run) -> int:
+    """A route refusal may be the only event, without a started event."""
+    return run.finished("failed", error={"code": "not_signed_in", "message": "Sign in to this Subscription.",
+                                         "retryable": False})
+
+
+def r12(run: Run) -> int:
+    """Output continues while PostgreSQL is away; the suite controls the two boundaries."""
+    run.started()
+    run.text("Before the database went away.")
+    run.hold()
+    run.text("Written while the database was away.")
+    run.shell("cat build.sh", "#!/bin/sh\nset -e\n")
+    run.usage(inputTokens=31, outputTokens=9)
+    if run.standin.part == "middle":
+        while not (run.standin.folder / "finish").exists():
+            run.silence(1)
+    return run.finished("completed")
+
+
+def r17(run: Run) -> int:
+    """Keep malformed characters in the event stream; the Trunk alone sanitizes SQL values."""
+    run.started()
+    run.hold()
+    run.text("A whole 😀 stays whole.")
+    run.text("\ud83d")
+    run.text("\ude00")
+    call = run.open_tool("shell", {"command": "cat binary", "nested": {"key\0": ["\ud83d", "😀"]}})
+    run.finish_tool(call, ok=True, result={"output": "before\0after 😀", "exitCode": 0}, interrupted=True)
+    run.usage(inputTokens=1, outputTokens=2)
+    return run.finished("completed")
+
+
 SCRIPTS: dict[str, Script] = {
     "selftest plain": selftest_plain,
     "selftest stop": selftest_stop,
@@ -638,6 +671,11 @@ SCRIPTS: dict[str, Script] = {
     "R14": r14,
     "R14 open": r3_busy,
     "R14 race": r3_busy,
+    "R11 rate_limited": selftest_fail,
+    "R11 not_signed_in": r11_not_signed_in,
+    "R11 folder": selftest_child,
+    "R12": r12,
+    "R17": r17,
     "R19": r19,
     "R19 fails small": r19_small_fails,
 }

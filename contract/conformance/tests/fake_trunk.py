@@ -12,6 +12,7 @@ was given to `<home>/fake-trunk.json` and answers with an acceptance line. FAKE_
   keeps the events in `<home>/fake-standin.jsonl`.
 
 `settle <exchange>` answers `{"exchange": …, "settled": "none"}`. FAKE_PSQL names psql for the modes that write rows.
+The fixed command argument `--refuse` refuses every command immediately, for testing whole-suite failure reporting.
 """
 
 from __future__ import annotations
@@ -52,6 +53,9 @@ def accept(exchange: str, chat: str) -> None:
 
 
 def main(args: list[str]) -> int:
+    if args[:1] == ["--refuse"]:
+        print(json.dumps({"error": {"code": "trunk_failed", "message": "The test Trunk refuses this command."}}))
+        return 1
     mode = os.environ.get("FAKE_TRUNK_MODE", "report")
     command = args[2] if len(args) > 2 else ""
     if command == "settle":
