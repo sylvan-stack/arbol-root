@@ -91,7 +91,7 @@ class Commands(unittest.TestCase):
         """root.input"""
         self.assertEqual(self.run_cli(['--root=sapling', 'trunks', '--root-dir='+str(self.root_dir),
                                       '--bin-dir='+str(self.bin_dir)]).returncode, 0)
-        for args in [[], ['list'], ['trunks', 'a', 'b'], ['trunks', '--other'], ['trunks', '--root'],
+        for args in [[], ['unknown'], ['trunks', 'a', 'b'], ['trunks', '--other'], ['trunks', '--root'],
                      ['trunks', '--root='], ['trunks', '--root', '-x'], ['trunks', '-v', 'a'],
                      ['trunks', '--root', 'sapling', '--root=sapling']]:
             with self.subTest(args=args):
