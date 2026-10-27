@@ -77,6 +77,16 @@ class LayoutCheck(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'already exists'):
             run_layout(self.inputs(own), self.lab)
 
+    def test_a_sequence_requires_its_comment_and_a_repeatable_create(self) -> None:
+        """root.layout-sequence-comments"""
+        with self.assertRaisesRegex(ValueError, 'Every sequence'):
+            run_layout(self.inputs('CREATE SEQUENCE IF NOT EXISTS fictional_counter;'),self.lab)
+        report=run_layout(self.inputs("CREATE SEQUENCE IF NOT EXISTS fictional_counter; "
+                                     "COMMENT ON SEQUENCE fictional_counter IS 'Fictional counter';"),self.lab)
+        self.assertTrue(report['repeated'])
+        with self.assertRaises(ValueError):
+            layout_statements('CREATE SEQUENCE nonrepeatable;')
+
     def test_every_table_and_column_needs_a_comment(self) -> None:
         """root.layout-comments"""
         for own in ["CREATE TABLE IF NOT EXISTS fictional(id integer);",

@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import contextlib
+import copy
+import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -11,6 +15,7 @@ import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -20,6 +25,50 @@ from scripts.check_layout import run_layout  # noqa: E402
 from scripts.check_migration import Origin, run_migration  # noqa: E402
 from scripts.migration_fixtures import CHATS, EXCHANGES, seed  # noqa: E402
 from scripts.sql_support import BuildInput, SqlLab, private_server  # noqa: E402
+
+
+class OperationalBoundary(unittest.TestCase):
+    def test_default_preview_does_not_open_an_owner_folder_or_start_a_build(self) -> None:
+        """sapling.backend-layout-preview"""
+        with tempfile.TemporaryDirectory(prefix="backend-preview-") as home:
+            result = subprocess.run(
+                [sys.executable, "-I", "-B", str(ROOT / "roots/sapling/drills/drill-backend-layouts.py")],
+                env={**os.environ, "HOME": home},
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                json.loads(result.stdout), {"preflightOnly": True, "roots": ["sapling", "jensen"], "realMessages": 0}
+            )
+            self.assertFalse(list(Path(home).iterdir()))
+
+    def test_operational_guard_detects_old_row_schema_and_new_counter_damage(self) -> None:
+        """sapling.backend-layout-preservation"""
+        sys.path.insert(0, str(ROOT / "roots/sapling/drills"))
+        from backend_layout_drills import BACKEND, preserved
+        from drill_support import DrillError
+
+        before: dict[str, Any] = {
+            "history": {"tables": {"chats": {"encodedRows": ["exact old row"]}}},
+            "schema": {"relations": ["old relation"], "comments": ["old comment"]},
+        }
+        after: dict[str, Any] = {
+            **copy.deepcopy(before),
+            "backend": {"counts": {name: 0 for name in BACKEND}, "counter": {"last_value": 1, "is_called": False}},
+        }
+        preserved(before, after)
+        for fault in ("row", "schema", "counter"):
+            bad = copy.deepcopy(after)
+            if fault == "row":
+                bad["history"]["tables"]["chats"]["encodedRows"] = ["different"]
+            elif fault == "schema":
+                bad["schema"]["comments"] = []
+            else:
+                bad["backend"]["counter"]["is_called"] = True
+            with self.subTest(fault=fault), self.assertRaises(DrillError):
+                preserved(before, bad)
 
 
 class BackendTables(unittest.TestCase):
@@ -81,6 +130,20 @@ class BackendTables(unittest.TestCase):
         self.assertEqual(
             report["backendTables"], {"exact": True, "sourceCounterUnchanged": True, "savedNextRevisions": [101, 101]}
         )
+
+    def test_empty_drafts_keep_consumed_and_not_yet_consumed_counter_states(self) -> None:
+        """root.backend-empty-counter"""
+        for called, expected in [(True, 101), (False, 100)]:
+            source, target = self.pair()
+            self.lab.server.execute(
+                source,
+                "DELETE FROM drafts; SELECT setval('drafts_revision',100," + ("true" if called else "false") + ")",
+            )
+            before = counter(self.lab.server, source)
+            answer = invoke(self.lab, self.inputs, source, target, "whole")
+            self.assertEqual(answer.returncode, 0, answer.stderr)
+            self.assertEqual(self.lab.server.value(target, "SELECT to_json(nextval('drafts_revision'))"), expected)
+            self.assertEqual(counter(self.lab.server, source), before)
 
     def test_counter_rollback_exhaustion_missing_layout_and_late_failure(self) -> None:
         """root.backend-counter-rollback"""
