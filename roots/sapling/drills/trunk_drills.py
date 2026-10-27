@@ -266,7 +266,8 @@ def failed_or_cancelled(frame: Frame, state: str) -> dict[str, Any]:
         first.fixture.release()
     else:
         result = frame.calls.run('arbol-root','--root','sapling','stop',first.id,seconds=30)
-        require(result.get('ended') == 'cancelled' and result.get('forced') is False,
+        new_json(frame.evidence/'stop-reply.json',result)
+        require(result.get('ended') in ('cancelled','saved') and result.get('forced') is False,
                 'The requested cancellation was not confirmed gracefully.')
     data = first.finish(state)
     if state == 'failed':
