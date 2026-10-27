@@ -110,7 +110,7 @@ def mode_protocol(source: str, mode: str) -> set[str]:
         nonlocal active
         for statement in statements('\n'.join(buffer)):
             if statement[0] == 'begin':
-                expected = {0:[('begin','read','only'),('begin','isolation','level','repeatable','read','read','only')],
+                expected: dict[int,list[Statement]] = {0:[('begin','read','only'),('begin','isolation','level','repeatable','read','read','only')],
                             1:[('begin','isolation','level','repeatable','read','read','only')],2:[('begin',)]}
                 if active or statement not in expected[phase] or begins[phase]:
                     raise ValueError('Each mode connection needs its prescribed single transaction.')

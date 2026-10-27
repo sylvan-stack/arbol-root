@@ -432,3 +432,59 @@ class ReadyJudgment(unittest.TestCase):
                         self.assertEqual(proof['currentRoot'],'jensen')
                         frame.root_exchange.assert_called_once_with('sapling','R5')
                 self.assertEqual(frame.current,'jensen')
+
+
+class ReimportJudgment(unittest.TestCase):
+    def test_exact_encoded_history_remaps_only_relational_uuid_fields_and_keeps_json_digits(self) -> None:
+        """sapling.chat-reimport-judgment"""
+        from chat_reimport_drills import CHAT, copied, selected
+        original_exchange = '20000000-0000-4000-8000-000000000001'
+        destination = '30000000-0000-4000-8000-000000000001'
+        mapped = '40000000-0000-4000-8000-000000000001'
+        moment = '2026-10-27T04:00:00+00:00'
+        source = {'tables':{
+            'chats':{'encodedRows':['{"id":"'+CHAT+'","title":"Keep 🌲","created_at":"'+moment+'"}']},
+            'exchanges':{'encodedRows':['{"id":"'+original_exchange+'","chat_id":"'+CHAT+'","number":1,"state":"completed","replaced_by":null}']},
+            'messages':{'encodedRows':['{"exchange_id":"'+original_exchange+'","position":0,"text":"'+CHAT+'"}']},
+            'tool_calls':{'encodedRows':['{"exchange_id":"'+original_exchange+'","input":{"exchange_id":"'+original_exchange+'","exact":0.123456789012345678901234567890}}']},
+            'runs':{'encodedRows':[]}}}
+        def decode(value: dict[str, Any]) -> dict[str, Any]:
+            for table in value['tables'].values():
+                table['rows'] = [document(row) for row in table['encodedRows']]
+            return value
+        from drill_support import document
+        decode(source)
+        target = json.loads(json.dumps(source))
+        target['tables']['chats']['encodedRows'][0] = target['tables']['chats']['encodedRows'][0].replace(CHAT,destination)
+        for table in ['exchanges','messages','tool_calls']:
+            prefix = '{"id":"' if table=='exchanges' else '{"exchange_id":"'
+            target['tables'][table]['encodedRows'][0] = target['tables'][table]['encodedRows'][0].replace(prefix+original_exchange,prefix+mapped,1)
+        target['tables']['exchanges']['encodedRows'][0] = target['tables']['exchanges']['encodedRows'][0].replace(CHAT,destination)
+        provenance = {'chat_id':destination,'from_root':'sapling','from_chat':CHAT,'ended_through':1,'migrated_at':moment,'stale':False}
+        target['tables']['migrated_chats'] = {'encodedRows':[json.dumps(provenance)]}
+        decode(target)
+        reply = {'endedThrough':1,'snapshotAt':'2026-10-27T05:00:00+01:00'}
+        copied(source,target,destination,reply)
+        self.assertEqual(selected(source,CHAT)['tool_calls'][0].count(original_exchange),2)
+        target['tables']['tool_calls']['encodedRows'][0] = target['tables']['tool_calls']['encodedRows'][0].replace('7890','7891')
+        with self.assertRaisesRegex(DrillError,'exact tool_calls'):
+            copied(source,target,destination,reply)
+
+    def test_reimport_phase_preview_and_started_phase_guard_make_no_owner_call(self) -> None:
+        """sapling.chat-reimport-guard"""
+        from chat_reimport_drills import run
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            places = Places(home,home/'bin',home/'evidence')
+            marker = places.evidence/'chat-reimport/replace/fictional/planned.json'
+            marker.parent.mkdir(parents=True)
+            marker.write_text('{}')
+            with mock.patch('chat_reimport_drills.Places.owner',return_value=places),mock.patch('chat_reimport_drills.MigrationFrame') as frame:
+                with self.assertRaisesRegex(DrillError,'already started'):
+                    run('replace')
+                frame.assert_not_called()
+        for phase in ['layout','replace','diverged']:
+            answer = subprocess.run([sys.executable,'-I','-B',str(ROOT/'roots/sapling/drills/drill-chat-reimport.py'),phase],
+                                    capture_output=True,text=True,check=False,timeout=5)
+            self.assertEqual(answer.returncode,0,answer.stdout+answer.stderr)
+            self.assertEqual(json.loads(answer.stdout)['preflightOnly'],True)
