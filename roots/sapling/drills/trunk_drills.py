@@ -208,6 +208,7 @@ def database_through_end(frame: Frame) -> dict[str, Any]:
     assert exchange.fixture is not None
     with stopped(stop=frame.service.stop,restore=frame.service.restore,healthy=frame.service.healthy,
                  receipt=frame.evidence/'restoration.json'):
+        offline_began = time.monotonic()
         exchange.fixture.release()
         end = wait_for(lambda:exchange.record().get('end'),seconds=20)
         began = time.monotonic()
@@ -218,10 +219,13 @@ def database_through_end(frame: Frame) -> dict[str, Any]:
                 'The offline end was not recoverable in both record and events.')
         require(exchange.listing_state() == 'unsaved', 'The completed offline result was not listed unsaved.')
         new_json(frame.evidence/'offline-record.json',exchange.record())
+        wait_for(lambda:True if time.monotonic()-offline_began >= 61 else None,seconds=65,interval=0.2)
+        offline = time.monotonic()-offline_began
     data = exchange.settle('completed')
     require(data['exchange']['error'] is None, 'The completed offline result acquired an error.')
     judge_database_rows(exchange)
-    return {'exchange':exchange.id,'finalRetrySeconds':elapsed,'unsavedBeforeRecovery':True,'realMessage':False}
+    return {'exchange':exchange.id,'finalRetrySeconds':elapsed,'offlineSeconds':offline,
+            'unsavedBeforeRecovery':True,'realMessage':False}
 
 
 def folder_unwritable(frame: Frame) -> dict[str, Any]:

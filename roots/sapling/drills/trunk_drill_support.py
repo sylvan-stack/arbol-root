@@ -138,8 +138,8 @@ class Exchange:
         if self.fixture:
             args += ['--bin-dir',str(self.fixture.bin)]
         # The environment switches are passed only to this owned invocation.
-        return (['/usr/bin/env','ARBOL_TEST_HANG=1','ARBOL_TEST_TIME_SCALE=1'] if hang else [])+[
-            str(self.frame.places.bin/'arbol-root'),*args]
+        return ['/usr/bin/env','ARBOL_TEST_TIME_SCALE=1',*(['ARBOL_TEST_HANG=1'] if hang else []),
+                str(self.frame.places.bin/'arbol-root'),*args]
 
     def accept(self, answer: dict[str, Any]) -> None:
         require(answer.get('accepted') is True and answer.get('duplicate') is False
@@ -319,6 +319,7 @@ class Frame:
     def proof(self) -> dict[str, Any]:
         return {'passed':True,'evidence':str(self.evidence),'exchanges':[x.id for x in self.exchanges],
                 'preExistingRowsUnchanged':True,'serviceRestored':self.service.healthy(),
+                'timeScale':1,
                 'standinSourceSHA256':hashlib.sha256(STANDIN.read_bytes()).hexdigest()}
 
 
