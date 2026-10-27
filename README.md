@@ -47,6 +47,20 @@ uv run --no-sync python -B scripts/verify_build.py
 
 All receipts, requests, rows and reported costs stay outside Git under `~/.local/share/arbol-root-evidence/first-roots/`, with private permissions and unique attempt directories. Reports never infer a price when the Driver omits cost. Unit discovery uses only private homes and servers, without an account or vendor call. Run operational scripts explicitly with `uv run --no-sync python <script>`; creation, real messages and stopping the installed service are never automatic Build checks.
 
+The `drill-*.py` scripts preflight by default; `--run` performs their named operation against retained First Sapling. `run-trunk-drills.py --run` runs the eight deterministic drills in order and stops on the first failure. These use a temporary Driver home, the existing RCT-4 stand-in and a byte-identical copy of the installed Trunk launcher through `--bin-dir`. Their Driver wrapper has an empty environment with only its private HOME, fixed interpreter and system path; it reads no owner credential or normal Driver state. Each run checks the unchanged pre-existing Root rows, an empty final Exchange directory and restored database health, and preserves the new drill history.
+
+| Script under `roots/sapling/drills/` | What it proves |
+|---|---|
+| `drill-trunk-killed.py` | A verified owned Trunk killed mid-run lists/settles interrupted and its chat continues; whole answer blocks, open calls and last usage follow RCT-3 |
+| `drill-trunk-hangs.py` | The actual sixty-second self-watch ends hung work, its Driver and stand-in child, then settling recovers it |
+| `drill-starter-gone.py` | The detached Exchange completes after its owned starter and pseudo-terminal disappear |
+| `drill-database-away-mid-run.py` | Output and heartbeat continue offline, then pending ordered rows are saved before the run finishes |
+| `drill-database-away-through-end.py` | The actual sixty-second final retry leaves a completed unsaved folder, then settling recovers it after restoration |
+| `drill-folder-unwritable.py` | The Exchange fails truthfully, its running call stops, permissions are restored and settling preserves the saved failure |
+| `drill-failed-exchange.py`, `drill-cancelled-exchange.py` | One failed/cancelled chat resumes while another chat continues independently |
+
+Only `drill-trunk-killed.py --run --real` makes a real vendor submission. It uses one approved Haiku message and the shared durable allowance; inspect an existing attempt before any later explicit run. Its ordinary form and the aggregate runner make none. A killed run can report no usage or cost before its end is cut off; missing values stay unknown. RCT-3 persists whole top-level `text` events and deliberately discards `text_delta` fragments after settling. The saved raw events remain in private evidence, and the drill never invents a message row from them. Database outages and permission changes restore through catchable interruptions; an unclean owned process or uncertain result prevents a successful verdict.
+
 ## Sylvan Stack 2
 
 | Repository | Package | Version | Artifact corpus | Artifact repository |
