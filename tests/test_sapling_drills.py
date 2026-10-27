@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import signal
 import stat
 import subprocess
@@ -156,16 +157,25 @@ class Frame(unittest.TestCase):
     def test_json_commands_preserve_arguments_and_reject_bad_status_or_non_json(self) -> None:
         """sapling.commands"""
         program = self.places.bin/'reply'
-        program.write_text(f'#!{sys.executable} -I\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
+        script = self.places.bin/'reply script.py'
+        script.write_text('import json,sys\nprint(json.dumps(sys.argv[1:]))\n')
+        interpreter = self.home/"packaged Python's directory"/'python'
+        interpreter.parent.mkdir()
+        interpreter.symlink_to(os.path.realpath(sys.executable))
+        program.write_text('#!/bin/sh\nexec '+shlex.join([str(interpreter),'-I','-B',str(script)])+' "$@"\n')
         program.chmod(0o755)
         args = ['one two',"a'b",'$HOME','🌲']
-        self.assertEqual(Commands(self.places,login=False).run('reply',*args),args)
+        for login in (False,True):
+            with self.subTest(login=login):
+                self.assertEqual(Commands(self.places,login=login).run('reply',*args),args)
         program.write_text('#!/bin/sh\nprintf not-json\n')
-        with self.assertRaises(DrillError):
-            Commands(self.places,login=False).run('reply')
+        for login in (False,True):
+            with self.subTest(login=login),self.assertRaises(DrillError):
+                Commands(self.places,login=login).run('reply')
         program.write_text('#!/bin/sh\nexit 3\n')
-        with self.assertRaisesRegex(DrillError,'returned 3'):
-            Commands(self.places,login=False).run('reply')
+        for login in (False,True):
+            with self.subTest(login=login),self.assertRaisesRegex(DrillError,'returned 3'):
+                Commands(self.places,login=login).run('reply')
 
     def test_wait_has_a_deadline_and_never_retries_after_that_deadline(self) -> None:
         """sapling.wait"""
