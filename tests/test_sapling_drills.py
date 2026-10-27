@@ -327,7 +327,7 @@ class MessageCommands(Commands):
                             'trunk':'trivial','build':'3','route':last['request']['route']},
                 'messages':[{'position':0,'role':'user','text':last['request']['message']},
                             {'position':1,'role':'assistant','text':answer}],
-                'runs':[{'outcome':'completed','usage':{'inputTokens':10,'outputTokens':3,'costUSD':0.001}}]}
+                'runs':[{'outcome':'completed','usage':{'inputTokens':10,'outputTokens':3,'costUsd':0.001}}]}
 
 
 class Messages(unittest.TestCase):

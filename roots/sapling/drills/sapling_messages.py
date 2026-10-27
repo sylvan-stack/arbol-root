@@ -71,7 +71,7 @@ def judge(data: dict[str, Any], accepted: dict[str, Any], message: str, number: 
             'The completed Driver run and its token usage are missing.')
     tokens = {name:sum(item['usage'].get(name,0) for item in runs) for name in ['inputTokens','outputTokens']}
     require(tokens['inputTokens'] > 0 and tokens['outputTokens'] > 0, 'The real answer has no reported input/output tokens.')
-    costs = [item['usage'].get('costUSD') for item in runs]
+    costs = [item['usage'].get('costUsd') for item in runs]
     cost = str(sum((Decimal(str(value)) for value in costs),Decimal(0))) if all(value is not None for value in costs) else None
     return {'exchange':accepted['exchange'],'chat':accepted['chat'],'number':number,'trunkBuild':accepted['build'],
             **tokens,'reportedCostUSD':cost,'remembered':remembered is not None,'runs':runs}
