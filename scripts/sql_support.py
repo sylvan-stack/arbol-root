@@ -53,7 +53,9 @@ class BuildInput:
         modes: tuple[str, ...] = ()
         if 'migrationModes' in layout:
             capability = read_modes(folder / 'layout' / MODES_FILE)
-            if older is None or capability != layout['migrationModes']:
+            advertised = layout['migrationModes']
+            if (older is None or not isinstance(advertised,dict) or type(advertised.get('version')) is not int
+                    or capability != advertised):
                 raise ValueError('The advertised migration modes do not match copied capabilities/lineage.')
             assert capability is not None
             modes = tuple(capability['modes'])

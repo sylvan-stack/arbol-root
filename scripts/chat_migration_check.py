@@ -116,6 +116,14 @@ def check_modes(inputs: BuildInput, lab: SqlLab) -> dict[str,Any]:
     same({'mode':'check','fromRoot':inputs.older,'checked':2,'stale':[]},value,'initial comparison')
     same(initial,history(lab,target),'an up-to-date comparison beyond marks')
 
+    # Refresh an open original as interrupted history, without ending/changing that original.
+    open_source = history(lab,source)
+    open_result = reply(invoke(lab,inputs,source,target,'chat',CHATS[0]),'chat')
+    same('replaced',open_result['action'],'uncontinued open-snapshot replacement')
+    copied(open_source,history(lab,target),CHATS[0],CHATS[0],open_result)
+    same(open_source,history(lab,source),'open source snapshot')
+    initial = history(lab,target)
+
     # End the source's open Exchange: the old copy stays interrupted until explicit reimport.
     lab.server.execute(source,f"UPDATE exchanges SET state='completed',ended_at=clock_timestamp() WHERE id='{EXCHANGES[2]}'")
     advanced = history(lab,source)

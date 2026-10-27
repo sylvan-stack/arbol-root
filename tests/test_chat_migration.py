@@ -52,6 +52,25 @@ class Capabilities(unittest.TestCase):
                 branch(value)
 
 
+    def test_build_input_refuses_boolean_or_mismatched_advertised_versions(self) -> None:
+        """root.migration-mode-input"""
+        import test_sql_support
+        with tempfile.TemporaryDirectory() as directory:
+            folder = test_sql_support.SqlSupport.image(Path(directory),older='fictionalold')
+            capability = folder/'layout/migration-modes.json'
+            capability.write_text(json.dumps(CAPABILITY))
+            manifest = folder/'package-manifest.json'
+            value = json.loads(manifest.read_text())
+            for advertised in [{'version':True,'modes':['check','chat']},{'version':2,'modes':['check','chat']}]:
+                value['layout']['migrationModes'] = advertised
+                manifest.write_text(json.dumps(value))
+                with self.subTest(advertised=advertised),self.assertRaises(ValueError):
+                    BuildInput.read(folder)
+            value['layout']['migrationModes'] = CAPABILITY
+            manifest.write_text(json.dumps(value))
+            self.assertEqual(BuildInput.read(folder).modes,('check','chat'))
+
+
 class ChatModes(unittest.TestCase):
     scope: contextlib.ExitStack
     lab: SqlLab
