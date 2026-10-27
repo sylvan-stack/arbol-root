@@ -65,6 +65,7 @@ class Manager:
     def __init__(self, frame: Frame, arguments: list[str], name: str) -> None:
         self.frame = frame
         self.name = name
+        self.arguments = arguments
         self.output = (frame.evidence/(name+'-stdout.json')).open('xb')
         self.errors = (frame.evidence/(name+'-stderr.txt')).open('xb')
         self.began = time.monotonic()
@@ -84,6 +85,9 @@ class Manager:
         self.output.flush()
         value = document((self.frame.evidence/(self.name+'-stdout.json')).read_bytes())
         require(isinstance(value,dict), 'The manager reply is not one JSON object.')
+        if self.arguments[:1] == ['stop']:
+            require(value.get('root') == 'sapling' and value.get('exchange') == self.arguments[-1],
+                    'The manager stop reply changed the owned Root/Exchange identity.')
         result = {'elapsedSeconds':time.monotonic()-self.began,'reply':value}
         new_json(self.frame.evidence/(self.name+'-result.json'),result)
         return result

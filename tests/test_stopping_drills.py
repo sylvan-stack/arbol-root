@@ -17,7 +17,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'roots/sapling/drills'))
 from drill_support import DrillError, wait_for  # noqa: E402
-from stopping_support import Manager, frozen, ignored_child  # noqa: E402
+from stopping_drills import reuse_build  # noqa: E402
+from stopping_support import Manager, frozen, ignored_child, stop_state  # noqa: E402
 from trunk_drill_support import StandinHome, processes  # noqa: E402
 
 
@@ -148,3 +149,48 @@ class IgnoredChild(unittest.TestCase):
                 self.assertNotIn(waiting.process.pid,processes())
             finally:
                 waiting.close()
+
+
+class StoppingJudgment(unittest.TestCase):
+    def test_saved_graceful_reply_is_valid_but_force_and_settling_cannot_be_invented(self) -> None:
+        """sapling.stop-reply-judgment"""
+        stop_state({'reply':{'ended':'saved','forced':False}},'cancelled',forced=False)
+        stop_state({'reply':{'ended':'interrupted','forced':True,'settling':{'settled':'interrupted'}}},
+                   'interrupted',forced=True)
+        for reply in [{'ended':'none','forced':False},{'ended':'interrupted','forced':False},
+                      {'ended':'interrupted','forced':True}]:
+            with self.subTest(reply=reply),self.assertRaises(DrillError):
+                stop_state({'reply':reply},'interrupted',forced=True)
+
+    def test_reuse_requires_retained_passing_checks_source_status_and_chosen_build(self) -> None:
+        """sapling.newer-build-receipt"""
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            evidence = home/'evidence'
+            journal = evidence/'stopping-drills/newer-build-receipts.jsonl'
+            journal.parent.mkdir(parents=True)
+            checks = [{'name':name,'passed':True} for name in ['unit','layout','migration']]
+            source = {'commit':'verified','branch':'main','uncommittedChanges':False}
+            record = {'component':'arbol-root','build':'2','status':'working','root':'sapling',
+                      'source':source,'checks':checks}
+            folder = home/'Library/Application Support/Arbol/builds/arbol-root/2'
+            folder.mkdir(parents=True)
+            file = folder/'build.json'
+            file.write_text(json.dumps(record))
+            report = evidence/'report.json'
+            report.write_text(json.dumps({'passed':True,'check':'sapling.newer-build','newRootBuild':'2',
+                                          'built':{'source':source,'checks':checks}}))
+            journal.write_text(json.dumps({'report':str(report)})+'\n')
+            frame = mock.Mock()
+            frame.places.home,frame.places.evidence = home,evidence
+            frame.calls.run.return_value = {'rootBuild':'2'}
+            self.assertTrue(reuse_build(frame)['reusedQualifiedBuild'])
+            for changed in [{**record,'status':'failed'},{**record,'checks':[]},
+                            {**record,'source':{'commit':'changed'}}]:
+                file.write_text(json.dumps(changed))
+                with self.subTest(changed=changed),self.assertRaises(DrillError):
+                    reuse_build(frame)
+            file.write_text(json.dumps(record))
+            frame.calls.run.return_value = {'rootBuild':'3'}
+            with self.assertRaises(DrillError):
+                reuse_build(frame)
