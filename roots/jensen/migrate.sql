@@ -14,6 +14,11 @@ BEGIN READ ONLY;
 SELECT set_config('arbol.requested_chat', :'arbol_migrate_chat', true), set_config('arbol.from_root', :'from_root', true) \gset
 DO $$
 BEGIN
+  IF to_regclass('drafts') IS NULL OR to_regclass('chat_settings') IS NULL
+     OR to_regclass('chat_marks') IS NULL OR to_regclass('exchange_notes') IS NULL
+     OR to_regclass('drafts_revision') IS NULL THEN
+    RAISE EXCEPTION 'The backend layout is incomplete';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM chats c JOIN migrated_chats m ON m.chat_id=c.id
                  WHERE c.id=current_setting('arbol.requested_chat')::uuid
                    AND m.from_root=current_setting('arbol.from_root')) THEN
@@ -28,6 +33,11 @@ BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SELECT set_config('arbol.source_chat', :'source_chat', true), now() AS snapshot \gset
 DO $$
 BEGIN
+  IF to_regclass('drafts') IS NULL OR to_regclass('chat_settings') IS NULL
+     OR to_regclass('chat_marks') IS NULL OR to_regclass('exchange_notes') IS NULL
+     OR to_regclass('drafts_revision') IS NULL THEN
+    RAISE EXCEPTION 'The backend layout is incomplete';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM chats WHERE id=current_setting('arbol.source_chat')::uuid) THEN
     RAISE EXCEPTION 'Unknown original chat' USING ERRCODE='P0002';
   END IF;
@@ -37,6 +47,7 @@ END $$;
 \copy (SELECT m.* FROM messages m JOIN exchanges e ON e.id=m.exchange_id WHERE e.chat_id=current_setting('arbol.source_chat')::uuid) TO 'messages.copy' WITH (FORMAT binary)
 \copy (SELECT t.* FROM tool_calls t JOIN exchanges e ON e.id=t.exchange_id WHERE e.chat_id=current_setting('arbol.source_chat')::uuid) TO 'tool_calls.copy' WITH (FORMAT binary)
 \copy (SELECT r.* FROM runs r JOIN exchanges e ON e.id=r.exchange_id WHERE e.chat_id=current_setting('arbol.source_chat')::uuid) TO 'runs.copy' WITH (FORMAT binary)
+\copy (SELECT n.* FROM exchange_notes n JOIN exchanges e ON e.id=n.exchange_id WHERE e.chat_id=current_setting('arbol.source_chat')::uuid) TO 'exchange_notes.copy' WITH (FORMAT binary)
 COMMIT;
 
 \connect :to_database
@@ -48,6 +59,7 @@ CREATE TEMP TABLE incoming_exchanges ON COMMIT DROP AS SELECT * FROM exchanges W
 CREATE TEMP TABLE incoming_messages ON COMMIT DROP AS SELECT * FROM messages WITH NO DATA;
 CREATE TEMP TABLE incoming_tool_calls ON COMMIT DROP AS SELECT * FROM tool_calls WITH NO DATA;
 CREATE TEMP TABLE incoming_runs ON COMMIT DROP AS SELECT * FROM runs WITH NO DATA;
+CREATE TEMP TABLE incoming_exchange_notes ON COMMIT DROP AS SELECT * FROM exchange_notes WITH NO DATA;
 CREATE TEMP TABLE exchange_map (original uuid PRIMARY KEY, destination uuid NOT NULL UNIQUE) ON COMMIT DROP;
 CREATE TEMP TABLE migration_result (value jsonb NOT NULL) ON COMMIT DROP;
 \copy incoming_chats FROM 'chats.copy' WITH (FORMAT binary)
@@ -55,6 +67,7 @@ CREATE TEMP TABLE migration_result (value jsonb NOT NULL) ON COMMIT DROP;
 \copy incoming_messages FROM 'messages.copy' WITH (FORMAT binary)
 \copy incoming_tool_calls FROM 'tool_calls.copy' WITH (FORMAT binary)
 \copy incoming_runs FROM 'runs.copy' WITH (FORMAT binary)
+\copy incoming_exchange_notes FROM 'exchange_notes.copy' WITH (FORMAT binary)
 DO $$
 DECLARE
   requested uuid := current_setting('arbol.requested_chat')::uuid;
@@ -96,6 +109,11 @@ BEGIN
     RAISE EXCEPTION 'An Exchange identifier belongs to unrelated history';
   END IF;
   IF NOT continued THEN
+    -- Root-local input stays exact; replacing an unresolved send could make its old UUID replay.
+    PERFORM 1 FROM drafts WHERE chat_id=requested FOR UPDATE;
+    IF EXISTS (SELECT 1 FROM drafts WHERE chat_id=requested AND sent_as IS NOT NULL) THEN
+      RAISE EXCEPTION 'The target Draft has an unresolved send' USING ERRCODE='55P03';
+    END IF;
     IF EXISTS (SELECT 1 FROM exchanges e JOIN exchanges old ON old.id=e.replaced_by
                WHERE old.chat_id=requested AND e.chat_id<>requested) THEN
       RAISE EXCEPTION 'Unrelated history refers to this copy';
@@ -104,6 +122,7 @@ BEGIN
     DELETE FROM messages m USING exchanges e WHERE m.exchange_id=e.id AND e.chat_id=requested;
     DELETE FROM tool_calls t USING exchanges e WHERE t.exchange_id=e.id AND e.chat_id=requested;
     DELETE FROM runs r USING exchanges e WHERE r.exchange_id=e.id AND e.chat_id=requested;
+    DELETE FROM exchange_notes n USING exchanges e WHERE n.exchange_id=e.id AND e.chat_id=requested;
     DELETE FROM exchanges WHERE chat_id=requested;
     UPDATE chats c SET title=i.title,created_at=i.created_at FROM incoming_chats i WHERE c.id=requested;
   ELSE
@@ -116,10 +135,12 @@ BEGIN
   UPDATE incoming_messages t SET exchange_id=m.destination FROM exchange_map m WHERE t.exchange_id=m.original;
   UPDATE incoming_tool_calls t SET exchange_id=m.destination FROM exchange_map m WHERE t.exchange_id=m.original;
   UPDATE incoming_runs t SET exchange_id=m.destination FROM exchange_map m WHERE t.exchange_id=m.original;
+  UPDATE incoming_exchange_notes t SET exchange_id=m.destination FROM exchange_map m WHERE t.exchange_id=m.original;
   INSERT INTO exchanges SELECT * FROM incoming_exchanges;
   INSERT INTO messages SELECT * FROM incoming_messages;
   INSERT INTO tool_calls SELECT * FROM incoming_tool_calls;
   INSERT INTO runs SELECT * FROM incoming_runs;
+  INSERT INTO exchange_notes SELECT * FROM incoming_exchange_notes;
   INSERT INTO migrated_chats (chat_id,from_root,from_chat,ended_through,migrated_at,stale)
     VALUES (result_chat,older,original,ended,snapshot_at,false)
     ON CONFLICT (chat_id) DO UPDATE SET ended_through=excluded.ended_through,
@@ -181,16 +202,50 @@ SELECT now() AS snapshot \gset
 \copy (SELECT * FROM messages) TO 'messages.copy' WITH (FORMAT binary)
 \copy (SELECT * FROM tool_calls) TO 'tool_calls.copy' WITH (FORMAT binary)
 \copy (SELECT * FROM runs) TO 'runs.copy' WITH (FORMAT binary)
+\copy (SELECT * FROM drafts) TO 'drafts.copy' WITH (FORMAT binary)
+\copy (SELECT * FROM chat_settings) TO 'chat_settings.copy' WITH (FORMAT binary)
+\copy (SELECT * FROM chat_marks) TO 'chat_marks.copy' WITH (FORMAT binary)
+\copy (SELECT * FROM exchange_notes) TO 'exchange_notes.copy' WITH (FORMAT binary)
+\copy (SELECT d.last_value,d.is_called,(s.seqtypid='bigint'::regtype AND s.seqincrement=1 AND s.seqmin=1 AND s.seqmax=9223372036854775807 AND s.seqcache=1 AND NOT s.seqcycle) AS valid_definition FROM drafts_revision d JOIN pg_sequence s ON s.seqrelid='drafts_revision'::regclass) TO 'drafts_revision.copy' WITH (FORMAT binary)
 COMMIT;
 
 -- 2. Write the second Root's tables in one transaction, so that a failure leaves no row.
 \connect :to_database
 BEGIN;
+SET LOCAL lock_timeout='2s';
+DO $$
+BEGIN
+  IF to_regclass('drafts') IS NULL OR to_regclass('chat_settings') IS NULL
+     OR to_regclass('chat_marks') IS NULL OR to_regclass('exchange_notes') IS NULL
+     OR to_regclass('drafts_revision') IS NULL THEN
+    RAISE EXCEPTION 'The target backend layout is incomplete';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_sequence WHERE seqrelid='drafts_revision'::regclass
+      AND seqtypid='bigint'::regtype AND seqincrement=1 AND seqmin=1
+      AND seqmax=9223372036854775807 AND seqcache=1 AND NOT seqcycle) THEN
+    RAISE EXCEPTION 'The target Draft revision counter is incompatible';
+  END IF;
+END $$;
+CREATE TEMP TABLE incoming_drafts_revision (
+  last_value bigint NOT NULL, is_called boolean NOT NULL, valid_definition boolean NOT NULL
+) ON COMMIT DROP;
+\copy incoming_drafts_revision FROM 'drafts_revision.copy' WITH (FORMAT binary)
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM incoming_drafts_revision)<>1
+     OR EXISTS (SELECT 1 FROM incoming_drafts_revision WHERE last_value<1 OR NOT valid_definition) THEN
+    RAISE EXCEPTION 'The source Draft revision counter is incompatible';
+  END IF;
+END $$;
 \copy chats FROM 'chats.copy' WITH (FORMAT binary)
 \copy exchanges FROM 'exchanges.copy' WITH (FORMAT binary)
 \copy messages FROM 'messages.copy' WITH (FORMAT binary)
 \copy tool_calls FROM 'tool_calls.copy' WITH (FORMAT binary)
 \copy runs FROM 'runs.copy' WITH (FORMAT binary)
+\copy drafts FROM 'drafts.copy' WITH (FORMAT binary)
+\copy chat_settings FROM 'chat_settings.copy' WITH (FORMAT binary)
+\copy chat_marks FROM 'chat_marks.copy' WITH (FORMAT binary)
+\copy exchange_notes FROM 'exchange_notes.copy' WITH (FORMAT binary)
 
 -- Where each chat came from and how far it had got, counted before open Exchanges change.
 INSERT INTO migrated_chats (chat_id, from_root, from_chat, ended_through, migrated_at)
@@ -200,5 +255,20 @@ GROUP BY c.id;
 
 -- An Exchange still open in First Sapling is only history here: interrupted, at the moment of the snapshot.
 UPDATE exchanges SET state = 'interrupted', ended_at = :'snapshot' WHERE state = 'open';
+
+-- A transactionally locked restart neither reuses a consumed/deleted revision nor survives rollback.
+DO $$
+DECLARE following numeric;
+BEGIN
+  ALTER SEQUENCE drafts_revision CACHE 1;
+  SELECT greatest(1::numeric,
+    (SELECT last_value::numeric+is_called::integer FROM incoming_drafts_revision),
+    (SELECT last_value::numeric+is_called::integer FROM drafts_revision),
+    (SELECT coalesce(max(revision)::numeric,0)+1 FROM drafts)) INTO following;
+  IF following>9223372036854775807 THEN
+    RAISE EXCEPTION 'The Draft revision counter is exhausted';
+  END IF;
+  EXECUTE format('ALTER SEQUENCE drafts_revision RESTART WITH %s',following);
+END $$;
 COMMIT;
 \endif

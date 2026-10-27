@@ -165,6 +165,7 @@ def mode_protocol(source: str, mode: str) -> set[str]:
     flush()
     required = {'progress.copy'} if mode == 'check' else REQUIRED
     if (phase != 2 or active or begins[1] != 1 or commits[1] != 1 or begins[2] != 1 or commits[2] != 1
-            or copies[1] != required or copies[2] != required):
+            or copies[1] != copies[2] or not required <= copies[1]
+            or not copies[1]-required <= ({'exchange_notes.copy'} if mode == 'chat' else set())):
         raise ValueError('Each optional mode needs a committed source snapshot and one atomic target write.')
     return copies[1]

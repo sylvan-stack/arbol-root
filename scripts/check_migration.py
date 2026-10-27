@@ -23,6 +23,8 @@ from rct_conformance.tables import catalog  # noqa: E402
 
 from arbol_root.model import object_file  # noqa: E402
 from arbol_root.process import timestamp  # noqa: E402
+from scripts.backend_tables import counter, next_draft, present  # noqa: E402
+from scripts.backend_tables import rows as backend_rows  # noqa: E402
 from scripts.chat_migration_check import check_modes  # noqa: E402
 from scripts.layout_compatibility import TABLES  # noqa: E402
 from scripts.migration_fixtures import seed  # noqa: E402
@@ -130,6 +132,9 @@ def run_migration(inputs: BuildInput, lab: SqlLab, older: Origin) -> dict[str,An
         lab.run_file(source,file)
     seed(lab.server,source)
     before, source_schema = rows(lab,source),catalog(lab.server,source)
+    source_counter = counter(lab.server,source) if present(lab.server,source) else None
+    original_backend = backend_rows(lab.server,source) if source_counter is not None else None
+    revisions: list[int] = []
 
     # A server-side refusal plus the validated source protocol checks READ ONLY independently of row comparison.
     probe = lab.server.home / 'read-only.sql'
@@ -158,15 +163,24 @@ def run_migration(inputs: BuildInput, lab: SqlLab, older: Origin) -> dict[str,An
         if answer.returncode:
             raise ValueError(f'psql migration ended with {answer.returncode}: {answer.stderr.strip()}')
         unchanged(before,rows(lab,source))
+        if source_counter is not None and counter(lab.server,source) != source_counter:
+            raise ValueError('Whole migration changed the original Draft counter.')
+        if original_backend is not None and (backend_rows(lab.server,source) != original_backend
+                                            or backend_rows(lab.server,database) != original_backend):
+            raise ValueError('Whole migration changed exact backend text/JSON/rows.')
         if catalog(lab.server,source) != source_schema or catalog(lab.server,database) != shape:
             raise ValueError('Migration changed a source or destination table layout.')
         actual = rows(lab,database)
         opened = judge(before,actual,older.root,began,ended)
+        if source_counter is not None:
+            revisions.append(next_draft(lab.server,database,source_counter,
+                                       max(row['revision'] for row in before['public.drafts'])))
         return actual,opened
 
     first,opened = success()
     for missing in ['source','table']:
         database = target()
+        target_counter = counter(lab.server,database) if source_counter is not None else None
         from_database = source
         if missing == 'source':
             from_database = 'absent_'+uuid.uuid4().hex
@@ -176,13 +190,18 @@ def run_migration(inputs: BuildInput, lab: SqlLab, older: Origin) -> dict[str,An
         if answer.returncode != 3 or any(rows(lab,database).values()):
             raise ValueError(f'The missing-{missing} migration must exit 3 and leave no destination row.')
         unchanged(before,rows(lab,source))
+        if target_counter is not None and counter(lab.server,database) != target_counter:
+            raise ValueError('A failed migration changed the target Draft counter.')
     second,second_opened = success()
     if normalized(first,opened) != normalized(second,second_opened):
         raise ValueError('A fresh repeated migration differs beyond the snapshot times.')
-    return {'check':'migration','root':inputs.root,'olderRoot':older.root,'sourceUnchanged':True,
+    report = {'check':'migration','root':inputs.root,'olderRoot':older.root,'sourceUnchanged':True,
             'unchangedTables':len(before),'sourceRows':sum(map(len,before.values())),
             'interruptedExchanges':len(opened),'provenanceRows':len(before['public.chats']),
             'missingSourceStatus':3,'missingTableStatus':3,'repeatable':True}
+    if source_counter is not None:
+        report['backendTables'] = {'exact':True,'sourceCounterUnchanged':True,'savedNextRevisions':revisions}
+    return report
 
 
 def check_migration(inputs: BuildInput, *, home: Path | None = None) -> dict[str,Any]:

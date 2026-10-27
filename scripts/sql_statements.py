@@ -68,8 +68,9 @@ def layout_statements(source: str) -> list[Statement]:
     found = statements(source)
     for tokens in found:
         create = tokens[:2] in {('create', 'table'), ('create', 'index')}
+        create = create or tokens[:5] == ('create', 'sequence', 'if', 'not', 'exists')
         create = create or tokens[:3] == ('create', 'unique', 'index')
-        comment = tokens[:2] == ('comment', 'on') and tokens[2:3] in {('table',), ('column',), ('index',)}
+        comment = tokens[:2] == ('comment', 'on') and tokens[2:3] in {('table',), ('column',), ('index',), ('sequence',)}
         addition = tokens[:2] == ('alter', 'table') and ('add', 'column') in tuple(zip(tokens, tokens[1:], strict=False))
         if addition:
             forbidden = {'alter', 'drop', 'rename', 'set', 'reset', 'constraint', 'check', 'unique', 'primary',
@@ -84,7 +85,7 @@ def layout_statements(source: str) -> list[Statement]:
                 elif token == ',' and depth == 0:
                     addition = False
         if not (create or comment or addition) or 'select' in tokens:
-            raise ValueError('A layout holds only table/index/column/comment DDL, never data-writing statements.')
+            raise ValueError('A layout holds only table/index/column/sequence/comment DDL, never data-writing statements.')
     return found
 
 

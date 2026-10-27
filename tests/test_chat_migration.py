@@ -146,6 +146,7 @@ class ChatModes(unittest.TestCase):
             self.lab.server.createdb(database)
             self.lab.run_file(database,inputs.file('chat-tables.sql'))
         self.lab.run_file(target,inputs.file('root-tables.sql'))
+        self.lab.run_file(source,inputs.folder/'roots/sapling/layout.sql')
         seed(self.lab.server,source)
         self.assertEqual(invoke(self.lab,inputs,source,target,'whole').returncode,0)
         self.lab.server.execute(source,f"UPDATE exchanges SET state='completed',ended_at=clock_timestamp() WHERE id='{EXCHANGES[2]}'")
