@@ -11,6 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from arbol_root.model import build_record, identifier, object_file  # noqa: E402
 
+sys.path.insert(0, str(ROOT))
+from scripts.migration_modes import FILE as MODES_FILE  # noqa: E402
+from scripts.migration_modes import read_modes  # noqa: E402
+
 
 def copy_layout(folder: Path, *, root: Path = ROOT, home: Path | None = None) -> dict[str, Any]:
     record = build_record(folder)
@@ -26,6 +30,12 @@ def copy_layout(folder: Path, *, root: Path = ROOT, home: Path | None = None) ->
              "root-tables.sql": root / "roots" / selected / "layout.sql"}
     if older is not None:
         paths["migrate.sql"] = root / "roots" / selected / "migrate.sql"
+    modes_path = root / 'roots' / selected / MODES_FILE
+    modes = read_modes(modes_path, optional=True)
+    if modes is not None:
+        if older is None:
+            raise ValueError('Optional migration modes require a Root with lineage.')
+        paths[MODES_FILE] = modes_path
     # Preflight every required file before writing even the first copy.
     content: dict[str, bytes] = {}
     for name, path in paths.items():
@@ -38,7 +48,12 @@ def copy_layout(folder: Path, *, root: Path = ROOT, home: Path | None = None) ->
         (layout / name).write_bytes(data)
     if older is None:
         (layout / "migrate.sql").unlink(missing_ok=True)
-    return {"root": selected, "rootContract": version, "grewFrom": older}
+    if modes is None:
+        (layout / MODES_FILE).unlink(missing_ok=True)
+    value = {"root": selected, "rootContract": version, "grewFrom": older}
+    if modes is not None:
+        value['migrationModes'] = modes
+    return value
 
 
 def main() -> int:

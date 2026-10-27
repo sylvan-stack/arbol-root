@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -36,7 +38,8 @@ def fixture_source(source: Path, destination: Path) -> Path:
     return destination
 
 
-def qualify(source: Path, tool: Path, cache: Path, output: Path, selected: str | None) -> dict[str,Any]:
+def qualify(source: Path, tool: Path, cache: Path, output: Path, selected: str | None,
+            previous: Path | None = None) -> dict[str,Any]:
     source,tool,cache,output = source.resolve(),tool.resolve(),cache.resolve(),output.resolve()
     if output.exists():
         raise ValueError('The evidence folder must be new.')
@@ -72,8 +75,27 @@ def qualify(source: Path, tool: Path, cache: Path, output: Path, selected: str |
             (folder / 'root.json').write_text(json.dumps(record))
         registry,bin_dir = home / 'registry with spaces',home / '.local/bin'
         reports: dict[str,Any] = {}
+        previous_number: str | None = None
         for name in ['sapling',selected]:
-            print(f'Building private Root {name}',file=sys.stderr,flush=True)
+            if name==selected and previous is not None:
+                record = json.loads((previous/'build.json').read_bytes())
+                manifest = json.loads((previous/'package-manifest.json').read_bytes())
+                if record.get('root')!=selected or record.get('status')!='working' or 'prunedAt' in record:
+                    raise ValueError('The earlier comparison Build must be a retained working Build of this Root.')
+                previous_number = record['build']
+                saved = registry/'arbol-root'/previous_number
+                saved.mkdir(parents=True)
+                for relative in ['build.json','package.json','layout/chat-tables.sql','layout/root-tables.sql']:
+                    file = previous/relative
+                    if not stat.S_ISREG(file.lstat().st_mode):
+                        raise ValueError('The earlier Build comparison input is not regular.')
+                    data = file.read_bytes()
+                    if relative.startswith('layout/') and hashlib.sha256(data).hexdigest()!=manifest['files'].get(relative):
+                        raise ValueError('The earlier Build SQL no longer matches its qualified manifest.')
+                    destination = saved/relative
+                    destination.parent.mkdir(parents=True,exist_ok=True)
+                    destination.write_bytes(data)
+            print(f'Building private Root {name}' ,file=sys.stderr,flush=True)
             answer = subprocess.run([str(tool),'build','arbol-root','--root',name,'--repo',str(source),
                                      '--registry-dir',str(registry),'--bin-dir',str(bin_dir)],
                                     env=env,capture_output=True,text=True,check=False,timeout=600)
@@ -86,6 +108,10 @@ def qualify(source: Path, tool: Path, cache: Path, output: Path, selected: str |
                     or value.get('checks') != [{'name':check,'passed':True} for check in ['unit','layout','migration']]
                     or re.search(r'skipped=\d+',log)):
                 raise ValueError(f'The private {name} Build failed; see {output}.')
+            if name==selected and previous_number is not None:
+                layouts = [json.loads(line) for line in log.splitlines() if line.startswith('{"check": "layout"')]
+                if len(layouts)!=1 or layouts[0].get('earlierBuild')!=previous_number:
+                    raise ValueError('The actual private Build did not qualify the retained earlier layout.')
             manifest = json.loads((folder / 'package-manifest.json').read_text())
             (output / (name+'-manifest.json')).write_text(json.dumps(manifest,indent=2)+'\n')
             listed = subprocess.run([str(folder / 'bin/arbol-root'),'list'],env=env,cwd=home,
@@ -150,7 +176,7 @@ def qualify(source: Path, tool: Path, cache: Path, output: Path, selected: str |
         if fast.get('serverNeeded') is not False:
             raise ValueError('The no-lineage packaged entry did not pass before tool discovery.')
         return {'check':'root.private-sql-builds','fixtureOnly':source != original,'roots':reports,
-                'earlierWorkingBuild':earlier.name,'editedStatementRejected':True,'requiredColumnRejected':True,
+                'earlierWorkingBuild':earlier.name,'retainedEarlierBuild':previous_number,'editedStatementRejected':True,'requiredColumnRejected':True,
                 'missingToolsNamed':list(found),'noLineageWithoutTools':True,'ownerRootsChanged':False,
                 'vendorRequests':0,'temporaryStateRemovedOnReturn':True}
 
@@ -161,11 +187,12 @@ def main() -> int:
     parser.add_argument('--tool',type=Path,default=Path.home() / '.local/bin/arbol-builds')
     parser.add_argument('--cache',type=Path,default=Path.home() / '.cache/arbol-driver-build/python')
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--previous-root-build',type=Path)
     choice = parser.add_mutually_exclusive_group(required=True)
     choice.add_argument('--fixture',action='store_true')
     choice.add_argument('--root')
     args = parser.parse_args()
-    report = qualify(args.source,args.tool,args.cache,args.output,args.root)
+    report = qualify(args.source,args.tool,args.cache,args.output,args.root,args.previous_root_build)
     (args.output / 'report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
     return 0

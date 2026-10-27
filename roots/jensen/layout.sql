@@ -17,3 +17,7 @@ COMMENT ON COLUMN migrated_chats.from_root IS 'The identifier of the Root it cam
 COMMENT ON COLUMN migrated_chats.from_chat IS 'The chat''s identifier in that Root; the same as chat_id for a chat copied as it was.';
 COMMENT ON COLUMN migrated_chats.ended_through IS 'How far the original had got when it was read: the number of its last Exchange that had ended, 0 when none had.';
 COMMENT ON COLUMN migrated_chats.migrated_at IS 'When the older database was read: the moment of the snapshot the copy shows.';
+
+-- Compatible addition for comparing and refreshing migrated copies (RTM-1.12).
+ALTER TABLE migrated_chats ADD COLUMN IF NOT EXISTS stale boolean NOT NULL DEFAULT false;
+COMMENT ON COLUMN migrated_chats.stale IS 'Whether the original has a later ended Exchange than ended_through; changed only by an explicit comparison or successful reimport.';

@@ -23,9 +23,10 @@ from rct_conformance.tables import catalog  # noqa: E402
 
 from arbol_root.model import object_file  # noqa: E402
 from arbol_root.process import timestamp  # noqa: E402
+from scripts.chat_migration_check import check_modes  # noqa: E402
 from scripts.layout_compatibility import TABLES  # noqa: E402
 from scripts.migration_fixtures import seed  # noqa: E402
-from scripts.migration_protocol import protocol  # noqa: E402
+from scripts.migration_protocol import mode_protocol, protocol  # noqa: E402
 from scripts.package_support import verify  # noqa: E402
 from scripts.sql_statements import layout_statements  # noqa: E402
 from scripts.sql_support import BuildInput, SqlLab, private_server, regular  # noqa: E402
@@ -188,9 +189,15 @@ def check_migration(inputs: BuildInput, *, home: Path | None = None) -> dict[str
     if inputs.older is None:
         return {'check':'migration','root':inputs.root,'olderRoot':None,'serverNeeded':False}
     older = origin(inputs,home or Path.home())
-    protocol(inputs.file('migrate.sql').read_text(encoding='utf-8'))
+    script = inputs.file('migrate.sql').read_text(encoding='utf-8')
+    protocol(script)
+    for mode in inputs.modes:
+        mode_protocol(script,mode)
     with private_server() as lab:
-        return run_migration(inputs,lab,older)
+        report = run_migration(inputs,lab,older)
+        if inputs.modes:
+            report['optionalModes'] = check_modes(inputs,lab)
+        return report
 
 
 def main() -> int:
