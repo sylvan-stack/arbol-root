@@ -115,10 +115,13 @@ class StandinHome:
 
 
 class Exchange:
-    def __init__(self, frame: Frame, scenario: str | None, chat: str | None = None) -> None:
+    def __init__(self, frame: Frame, scenario: str | None, chat: str | None = None, *, root: str = 'sapling') -> None:
+        require(root.isascii() and root.isalnum() and root.lower() == root, 'Invalid owned Exchange Root.')
+        self.root = root
+        self.inspector = frame.inspector if root == 'sapling' else Inspector(frame.places,root=root)
         self.frame = frame
         self.id = str(uuid.uuid4())
-        self.folder = frame.places.roots/'sapling/exchanges'/self.id
+        self.folder = frame.places.roots/root/'exchanges'/self.id
         self.fixture = StandinHome(frame.places.bin/'arbol-trunk',scenario) if scenario is not None else None
         self.accepted: dict[str, Any] = {}
         self.chat = chat
@@ -132,7 +135,7 @@ class Exchange:
         route = {'driver':'claude','subscription':'standin' if self.fixture else 'anthropic',
                  'model':'standin-model' if self.fixture else 'haiku'}
         new_json(self.request,{'message':message,'route':route,'workingFolder':str(self.frame.work)})
-        args = ['--root','sapling','start','trivial','--exchange',self.id,'--request',str(self.request)]
+        args = ['--root',self.root,'start','trivial','--exchange',self.id,'--request',str(self.request)]
         if self.chat:
             args += ['--chat',self.chat]
         if self.fixture:
@@ -143,7 +146,7 @@ class Exchange:
 
     def accept(self, answer: dict[str, Any]) -> None:
         require(answer.get('accepted') is True and answer.get('duplicate') is False
-                and answer.get('root') == 'sapling' and answer.get('exchange') == self.id
+                and answer.get('root') == self.root and answer.get('exchange') == self.id
                 and answer.get('trunk') == 'trivial', 'The fresh owned Exchange was not accepted.')
         require(self.chat is None or answer.get('chat') == self.chat, 'The resumed Exchange changed chats.')
         self.accepted = answer
@@ -159,7 +162,7 @@ class Exchange:
 
     def record(self) -> dict[str, Any]:
         value = document((self.folder/'record.json').read_bytes())
-        require(value.get('root') == 'sapling' and value.get('exchange') == self.id,
+        require(value.get('root') == self.root and value.get('exchange') == self.id,
                 'The owned record identity changed.')
         return dict(value)
 
@@ -193,7 +196,7 @@ class Exchange:
         os.kill(leader['pid'],signal.SIGKILL)
 
     def persisted(self) -> dict[str, Any]:
-        return snapshot(self.frame.inspector,self.id)
+        return snapshot(self.inspector,self.id)
 
     def finish(self, state: str, *, seconds: float = 35) -> dict[str, Any]:
         def ended() -> dict[str, Any] | None:
@@ -216,12 +219,12 @@ class Exchange:
             new_json(path,value)
 
     def listing_state(self) -> str | None:
-        listing = self.frame.calls.run('arbol-root','--root','sapling','list')
+        listing = self.frame.calls.run('arbol-root','--root',self.root,'list')
         return next((row['state'] for row in listing['exchanges'] if row['exchange'] == self.id),None)
 
     def settle(self, state: str) -> dict[str, Any]:
-        result = self.frame.calls.run('arbol-root','--root','sapling','settle',self.id,seconds=35)
-        require(result == {'root':'sapling','results':[{'exchange':self.id,'settled':state}]},
+        result = self.frame.calls.run('arbol-root','--root',self.root,'settle',self.id,seconds=35)
+        require(result == {'root':self.root,'results':[{'exchange':self.id,'settled':state}]},
                 'The owned settle result differs.')
         return self.finish(state)
 
@@ -240,7 +243,7 @@ class Exchange:
         if self.accepted:
             if not self.gone():
                 try:
-                    self.frame.calls.run('arbol-root','--root','sapling','stop','--force',self.id,seconds=45)
+                    self.frame.calls.run('arbol-root','--root',self.root,'stop','--force',self.id,seconds=45)
                 finally:
                     # A killed leader may leave an orphan Driver. Signal only the captured, still-identical PID.
                     current = processes()
@@ -252,7 +255,7 @@ class Exchange:
                                 pass
                     wait_for(lambda:True if self.gone() else None,seconds=20,interval=0.2)
             if self.folder.exists():
-                self.frame.calls.run('arbol-root','--root','sapling','settle',self.id,seconds=35)
+                self.frame.calls.run('arbol-root','--root',self.root,'settle',self.id,seconds=35)
             self.save()
         if self.events_file is not None:
             self.events_file.close()
