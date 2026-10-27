@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 import uuid
 from decimal import Decimal
@@ -66,7 +67,11 @@ def real_messages(places: Places, *, send: bool = False, commands: Commands | No
     require(listing.get('exchanges') == [] and listing.get('unreadable') == [],
             'First Sapling must have no in-progress or unreadable Exchange before the two-message check.')
     budget = Budget(places.evidence)
-    remaining = budget.status()['remaining']
+    history = budget.status()
+    require(all((attempt.get('usage') or {}).get('retryNotBeforeUnix',0) <= time.time()
+                for attempt in history['attempts']),
+            'The last vendor rate-limit deadline has not passed; no fresh message was sent.')
+    remaining = history['remaining']
     require(remaining >= 2, 'Two messages do not fit in the remaining owner allowance; none was sent.')
     if not send:
         return {'check':'sapling.real-messages','preflightOnly':True,'plannedSubmissions':2,'remaining':remaining,
@@ -84,6 +89,7 @@ def real_messages(places: Places, *, send: bool = False, commands: Commands | No
         exchange = str(uuid.uuid4())
         budget.reserve(exchange)
         started = False
+        data: dict[str, Any] | None = None
         try:
             request = folder/(exchange+'-request.json')
             value = {'message':message,'route':{'driver':'claude','subscription':'anthropic','model':'haiku'},
@@ -118,14 +124,21 @@ def real_messages(places: Places, *, send: bool = False, commands: Commands | No
                 return None
 
             data = wait_for(finished,seconds=300,interval=0.2)
-            verdict = judge(data,accepted,message,number,remembered=word if number == 2 else None)
             new_json(folder/(exchange+'-persisted.json'),data)
+            verdict = judge(data,accepted,message,number,remembered=word if number == 2 else None)
             new_json(folder/(exchange+'-verdict.json'),verdict)
             budget.finish(exchange,'completed',usage={key:verdict[key] for key in
                                                     ['inputTokens','outputTokens','reportedCostUSD']})
             results.append(verdict)
         except BaseException as error:
-            budget.finish(exchange,'ambiguous' if started else 'no_vendor')
+            recorded: dict[str, Any] | None = None
+            failure = (data or {}).get('exchange') or {}
+            refusal = failure.get('error') or {}
+            retry = refusal.get('retryAfterSeconds')
+            if (refusal.get('code') == 'rate_limited' and isinstance(retry,(float,int))
+                    and not isinstance(retry,bool) and math.isfinite(retry) and retry >= 0):
+                recorded = {'outcome':'failed','error':'rate_limited','retryNotBeforeUnix':time.time()+retry}
+            budget.finish(exchange,'ambiguous' if started else 'no_vendor',usage=recorded)
             new_json(folder/(exchange+'-failure.json'),{'error':str(error),'started':started,
                                                       'next':'Inspect this attempt; do not automatically submit it again.'})
             # Only this attempt's own Exchange can be asked to stop; never another chat/run.

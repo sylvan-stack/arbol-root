@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -369,6 +370,17 @@ class Messages(unittest.TestCase):
         for _ in range(9):
             Budget(self.places.evidence).reserve(str(uuid.uuid4()))
         with self.assertRaises(DrillError):
+            real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+        self.assertEqual(self.calls.starts,0)
+
+    def test_known_vendor_retry_deadline_blocks_even_a_cached_report_showing_available_capacity(self) -> None:
+        """sapling.messages-retry-deadline"""
+        budget = Budget(self.places.evidence)
+        exchange = str(uuid.uuid4())
+        budget.reserve(exchange)
+        budget.finish(exchange,'ambiguous',usage={'outcome':'failed','error':'rate_limited',
+                                                 'retryNotBeforeUnix':time.time()+3600})
+        with self.assertRaisesRegex(DrillError,'deadline has not passed'):
             real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
         self.assertEqual(self.calls.starts,0)
 
