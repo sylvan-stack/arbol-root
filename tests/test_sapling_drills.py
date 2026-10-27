@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import stat
 import subprocess
 import sys
@@ -20,6 +22,72 @@ from drill_support import Budget, Commands, DrillError, Inspector, Places, new_j
 from rct_conformance.postgres import Server  # noqa: E402
 from sapling_creation import make_sapling  # noqa: E402
 from sapling_messages import judge, real_messages  # noqa: E402
+from sapling_outage import DirectoryWatch, stopped  # noqa: E402
+
+
+class Outage(unittest.TestCase):
+    def test_private_server_is_restored_after_success_failure_partial_stop_and_real_signals(self) -> None:
+        """sapling.restore: success, errors, partial stops and real SIGINT/SIGTERM all restore and prove health."""
+        with tempfile.TemporaryDirectory(prefix='sapling private outage ') as temporary:
+            home = Path(temporary).resolve()
+            server = Server.create(home/'postgres',home=home)
+            try:
+                handlers = {number:signal.getsignal(number) for number in (signal.SIGINT,signal.SIGTERM)}
+                def healthy() -> bool:
+                    return server.running() and server.value('postgres','SELECT to_json(true)') is True
+
+                for kind in ('success','failure','partial-stop','SIGINT','SIGTERM'):
+                    with self.subTest(kind=kind):
+                        receipt = home/(kind+'.json')
+                        def stop(selected: str = kind) -> None:
+                            server.stop()
+                            if selected == 'partial-stop':
+                                raise RuntimeError('failure after stopping')
+                        try:
+                            with stopped(stop=stop,restore=server.start,healthy=healthy,receipt=receipt):
+                                self.assertFalse(server.running())
+                                if kind == 'failure':
+                                    raise RuntimeError('body failure')
+                                if kind in ('SIGINT','SIGTERM'):
+                                    os.kill(os.getpid(),getattr(signal,kind))
+                        except (RuntimeError,KeyboardInterrupt):
+                            self.assertNotEqual(kind,'success')
+                        self.assertTrue(healthy())
+                        self.assertTrue(json.loads(receipt.read_text())['restored'])
+                        self.assertEqual({number:signal.getsignal(number) for number in handlers},handlers)
+            finally:
+                server.remove()
+
+    def test_failed_restore_is_reported_and_original_handlers_are_still_restored(self) -> None:
+        """sapling.restore-failure: an unverified restoration cannot produce a passing receipt."""
+        with tempfile.TemporaryDirectory() as temporary:
+            receipt = Path(temporary)/'failed.json'
+            state = [True]
+            def stop() -> None:
+                state[0] = False
+            def restore() -> None:
+                raise RuntimeError('private planted restore failure')
+            handlers = {number:signal.getsignal(number) for number in (signal.SIGINT,signal.SIGTERM)}
+            with self.assertRaisesRegex(DrillError,'restoration did not pass'):
+                with stopped(stop=stop,restore=restore,healthy=lambda:state[0],receipt=receipt):
+                    pass
+            self.assertFalse(json.loads(receipt.read_text())['restored'])
+            self.assertEqual({number:signal.getsignal(number) for number in handlers},handlers)
+
+    def test_run_directory_watch_detects_a_file_that_was_created_and_already_removed(self) -> None:
+        """sapling.no-driver-run: two empty snapshots cannot hide a fleeting run file."""
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            watch = DirectoryWatch(folder)
+            try:
+                self.assertFalse(watch.changed())
+                path = folder/'fictional-run.json'
+                path.write_text('{}')
+                path.unlink()
+                self.assertEqual(list(folder.iterdir()),[])
+                self.assertTrue(watch.changed())
+            finally:
+                watch.close()
 
 
 class Frame(unittest.TestCase):
