@@ -83,6 +83,17 @@ def thaw_client(identity: dict[str, Any]) -> None:
     os.kill(identity['pid'],signal.SIGCONT)
 
 
+def client_folder(identity: dict[str, Any]) -> Path:
+    """Observe only the anchored owned client's cwd, without reading its environment."""
+    require(processes().get(identity['pid']) == identity, 'The SQL client changed before observing its folder.')
+    result = subprocess.run(['/usr/sbin/lsof','-a','-p',str(identity['pid']),'-d','cwd','-Fn'],
+                            stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=5,check=False)
+    names = [Path(line[1:]) for line in result.stdout.splitlines() if line.startswith('n')]
+    require(result.returncode == 0 and len(names) == 1 and processes().get(identity['pid']) == identity,
+            'The anchored SQL client folder could not be verified.')
+    return names[0].resolve()
+
+
 class Command:
     def __init__(self, frame: Frame, arguments: list[str], name: str) -> None:
         self.frame,self.name = frame,name

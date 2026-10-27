@@ -11,6 +11,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -20,7 +21,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(ROOT/'roots/sapling/drills'))
 from drill_support import DrillError, Inspector, Places, wait_for  # noqa: E402
-from migration_support import Command, Snapshot, SourceLock, direct_psql, fingerprints, thaw_client  # noqa: E402
+from migration_support import (  # noqa: E402
+    Command,
+    Snapshot,
+    SourceLock,
+    client_folder,
+    direct_psql,
+    fingerprints,
+    thaw_client,
+)
 from sapling_outage import stopped  # noqa: E402
 from stopping_support import frozen  # noqa: E402
 from trunk_drill_support import Exchange, Frame, processes  # noqa: E402
@@ -133,6 +142,7 @@ class MigrationHelpers(unittest.TestCase):
                 child = wait_for(command.psql,seconds=5)
                 identities.append(child)
                 self.assertEqual(direct_psql(command.process.pid),child)
+                self.assertEqual(client_folder(child),frame.work.resolve())
                 with frozen(child,home/'freeze.json'):
                     self.assertIn('T',subprocess.check_output(['/bin/ps','-o','stat=','-p',str(child['pid'])],text=True))
                 self.assertTrue(json.loads((home/'freeze.json').read_text())['thawed'])
@@ -169,6 +179,42 @@ class MigrationHelpers(unittest.TestCase):
                 if not self.lab.server.running():
                     self.lab.server.start()
             self.assertEqual(fingerprints(Snapshot(i).read()),before)
+
+    def test_copy_judgment_checks_actual_private_sql_bytes_snapshot_and_provenance(self) -> None:
+        """sapling.migration-copy-judgment"""
+        from migration_drills import judge_copy
+        source = self.database('copyjudge')
+        self.lab.server.createdb('copytarget')
+        self.lab.run_file('copytarget',ROOT/'contract/1/layout.sql')
+        self.lab.run_file('copytarget',ROOT/'roots/jensen/layout.sql')
+        before = Snapshot(source).read()
+        began = datetime.now(UTC)
+        with tempfile.TemporaryDirectory() as directory:
+            self.lab.run_file('copytarget',ROOT/'roots/jensen/migrate.sql',single=False,cwd=Path(directory),
+                              variables={'from_database':'copyjudge','from_root':'sapling'})
+        ended = datetime.now(UTC)
+        target = Inspector.__new__(Inspector)
+        target.places,target.psql,target.environment = source.places,source.psql,source.environment
+        target.address = self.lab.server.url('copytarget')
+        copied = Snapshot(target,provenance=True).read()
+        proof = judge_copy(before,copied,began,ended)
+        self.assertEqual(proof['openExchanges'],[EXCHANGES[2]])
+        self.assertEqual(proof['chats'],2)
+        self.assertEqual(fingerprints(Snapshot(source).read()),fingerprints(before))
+        import copy
+        for kind in ['text','end','provenance','snapshot']:
+            changed = copy.deepcopy(copied)
+            if kind == 'text':
+                changed['tables']['messages']['encodedRows'][0] += ' '
+            elif kind == 'end':
+                next(x for x in changed['tables']['exchanges']['rows'] if x['id'] == EXCHANGES[2])['state']='cancelled'
+            elif kind == 'provenance':
+                changed['tables']['migrated_chats']['rows'][0]['ended_through']=999
+            else:
+                for row in changed['tables']['migrated_chats']['rows']:
+                    row['migrated_at']='2000-01-01T00:00:00+00:00'
+            with self.subTest(kind=kind),self.assertRaises(DrillError):
+                judge_copy(before,changed,began,ended)
 
     def test_source_lock_constructor_failure_cleans_its_private_client(self) -> None:
         """sapling.migration-lock-failure"""
