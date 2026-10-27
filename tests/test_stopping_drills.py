@@ -1,0 +1,150 @@
+"""Stopping-drill helpers act only on private, disposable processes and homes."""
+
+from __future__ import annotations
+
+import json
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from datetime import timedelta
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'roots/sapling/drills'))
+from drill_support import DrillError, wait_for  # noqa: E402
+from stopping_support import Manager, frozen, ignored_child  # noqa: E402
+from trunk_drill_support import StandinHome, processes  # noqa: E402
+
+
+class Freeze(unittest.TestCase):
+    def test_a_private_process_is_thawed_after_success_body_failure_and_real_signals(self) -> None:
+        """sapling.freeze-cleanup"""
+        with tempfile.TemporaryDirectory(prefix='private freeze ') as directory:
+            child = subprocess.Popen(['/bin/sleep','60'],start_new_session=True)
+            try:
+                identity = processes()[child.pid]
+                handlers = {n:signal.getsignal(n) for n in (signal.SIGINT,signal.SIGTERM)}
+                for kind in ['success','failure','SIGINT','SIGTERM']:
+                    receipt = Path(directory)/(kind+'.json')
+                    try:
+                        with frozen(identity,receipt):
+                            state = subprocess.check_output(['/bin/ps','-o','stat=','-p',str(child.pid)],text=True)
+                            self.assertIn('T',state)
+                            if kind == 'failure':
+                                raise ValueError('private failure')
+                            if kind.startswith('SIG'):
+                                os.kill(os.getpid(),getattr(signal,kind))
+                    except (KeyboardInterrupt,ValueError):
+                        self.assertNotEqual(kind,'success')
+                    self.assertTrue(json.loads(receipt.read_text())['thawed'])
+                    self.assertNotIn('T',subprocess.check_output(['/bin/ps','-o','stat=','-p',str(child.pid)],text=True))
+                    self.assertEqual({n:signal.getsignal(n) for n in handlers},handlers)
+            finally:
+                os.kill(child.pid,signal.SIGCONT)
+                child.terminate()
+                child.wait(timeout=5)
+
+    def test_reused_or_stale_identity_never_gets_a_thaw_signal(self) -> None:
+        """sapling.freeze-reused-pid"""
+        with tempfile.TemporaryDirectory() as directory:
+            identity = {'pid':987654,'group':987654,'started':processes()[os.getpid()]['started']}
+            changed = {**identity,'started':identity['started']+timedelta(days=1)}
+            with mock.patch('stopping_support.processes',side_effect=[{987654:identity},{987654:changed}]),\
+                    mock.patch('stopping_support.os.kill') as kill:
+                with frozen(identity,Path(directory)/'reused.json'):
+                    pass
+                kill.assert_called_once_with(987654,signal.SIGSTOP)
+            with mock.patch('stopping_support.processes',return_value={987654:changed}),\
+                    mock.patch('stopping_support.os.kill') as kill:
+                with self.assertRaises(DrillError):
+                    with frozen(identity,Path(directory)/'stale.json'):
+                        pass
+                kill.assert_not_called()
+
+    def test_failure_during_stop_delivery_still_attempts_to_thaw_the_same_owned_process(self) -> None:
+        """sapling.freeze-delivery-race"""
+        with tempfile.TemporaryDirectory() as directory:
+            identity = {'pid':987654,'group':987654,'started':processes()[os.getpid()]['started']}
+            def deliver(pid: int, number: int) -> None:
+                if number == signal.SIGSTOP:
+                    raise KeyboardInterrupt('arrived just after stop delivery')
+            with mock.patch('stopping_support.processes',return_value={987654:identity}),\
+                    mock.patch('stopping_support.os.kill',side_effect=deliver) as kill:
+                with self.assertRaises(KeyboardInterrupt):
+                    with frozen(identity,Path(directory)/'race.json'):
+                        pass
+                self.assertEqual([x.args for x in kill.call_args_list],
+                                 [(987654,signal.SIGSTOP),(987654,signal.SIGCONT)])
+
+
+class IgnoredChild(unittest.TestCase):
+    def test_private_wrapper_child_records_term_and_survives_until_explicit_kill(self) -> None:
+        """sapling.force-child"""
+        with tempfile.TemporaryDirectory(prefix='private stopping wrapper ') as directory:
+            home = Path(directory)
+            launcher = home/'trunk'
+            launcher.write_text('#!/bin/sh\nexit 0\n')
+            launcher.chmod(0o700)
+            fixture = StandinHome(launcher,'selftest hold')
+            process: subprocess.Popen[str] | None = None
+            pid: int | None = None
+            try:
+                exchange = mock.Mock()
+                exchange.fixture = fixture
+                ignored_child(exchange)
+                request = home/'request.json'
+                request.write_text(json.dumps({'input':'hold','runId':'private-stop','model':'standin-model'}))
+                process = subprocess.Popen([str(fixture.bin/'arbol-claude-driver'),'run','--request',str(request)],
+                                           stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
+                                           text=True,start_new_session=True)
+                file = fixture.home/'standin/ignored-child.json'
+                value = wait_for(lambda:json.loads(file.read_text()) if file.exists() else None,seconds=10)
+                pid = value['pid']
+                self.assertEqual(os.getpgid(pid),process.pid)
+                self.assertIn(pid,fixture.children())
+                os.kill(pid,signal.SIGTERM)
+                marker = fixture.home/'standin/ignored-signals.jsonl'
+                wait_for(lambda:True if marker.exists() else None,seconds=5)
+                self.assertEqual(json.loads(marker.read_text().splitlines()[0])['signal'],signal.SIGTERM)
+                time.sleep(0.05)
+                self.assertIn(pid,processes())
+            finally:
+                if process is not None:
+                    os.killpg(process.pid,signal.SIGKILL)
+                    process.communicate(timeout=5)
+                if pid is not None:
+                    wait_for(lambda:True if pid not in processes() else None,seconds=5)
+                fixture.close()
+
+    def test_owned_manager_reply_and_kill_reap_only_the_started_private_command(self) -> None:
+        """sapling.owned-manager"""
+        with tempfile.TemporaryDirectory(prefix='private manager command ') as directory:
+            home = Path(directory)
+            (home/'bin').mkdir()
+            (home/'work').mkdir()
+            executable = home/'bin/arbol-root'
+            executable.write_text('#!'+os.path.realpath(sys.executable)+'\n'
+                                  'import json,sys,time\n'
+                                  'if sys.argv[-1] == "wait": time.sleep(30)\n'
+                                  'else: print(json.dumps({"root":"sapling","private":True}))\n')
+            executable.chmod(0o700)
+            frame = mock.Mock()
+            frame.places.home,frame.places.bin,frame.work,frame.evidence = home,home/'bin',home/'work',home
+            manager = Manager(frame,['reply'],'reply')
+            try:
+                self.assertEqual(manager.finish()['reply'],{'root':'sapling','private':True})
+            finally:
+                manager.close()
+            waiting = Manager(frame,['wait'],'waiting')
+            try:
+                self.assertIsNone(waiting.process.poll())
+                waiting.kill()
+                self.assertEqual(waiting.process.returncode,-signal.SIGKILL)
+                self.assertNotIn(waiting.process.pid,processes())
+            finally:
+                waiting.close()
