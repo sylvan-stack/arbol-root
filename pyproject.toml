@@ -14,8 +14,8 @@ package = false
 [tool.mypy]
 python_version = "3.14"
 strict = true
-mypy_path = ["src", "contract/conformance"]
-files = ["src", "tests", "scripts", "bin/entry.py", "contract/conformance/rct_conformance", "contract/conformance/tests", "contract/conformance/standin/driver.py",
+mypy_path = ["src", "contract/conformance", "roots/sapling/drills"]
+files = ["src", "tests", "scripts", "roots/sapling/drills", "bin/entry.py", "contract/conformance/rct_conformance", "contract/conformance/tests", "contract/conformance/standin/driver.py",
          "contract/conformance/bin/rct-conformance.py"]
 
 [tool.ruff]

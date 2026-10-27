@@ -25,7 +25,7 @@ The layout check runs both copied files twice on its own temporary PostgreSQL se
 
 The migration check passes immediately without a server for a Root with no lineage. Otherwise, on a separate private server, it builds the older schema from packaged SQL and seeds fictional chats with completed, failed, cancelled and open Exchanges, replacement history and exact Unicode/text/JSON payloads. The copied migration must use the prescribed read-only repeatable source snapshot and one destination transaction. The check verifies every old row, snapshot interruption, provenance, source immutability, status 3 and empty destinations for the two required failures, and a fresh repeat. It runs no SQL against the owner's database. Applying layouts or migrating a real Root remains `arbol-roots` work and the SYL-189 drill.
 
-`scripts/verify_build.py` qualifies a disposable packaged manager through real Build Tool launchers, including stop, exact-Trivial-Build settling and dot cleanup. Its packaged unit suite includes real private TERM/ignored-TERM groups and a surviving child, plus an in-process moved clock for the full 20/5/5-second escalation and `not_ended`. Real-Root operational drills remain SYL-188. No global Root manager is installed until the First Roots work supplies its real Root.
+`scripts/verify_build.py` qualifies a disposable packaged manager through real Build Tool launchers, including stop, exact-Trivial-Build settling and dot cleanup. Its packaged unit suite includes real private TERM/ignored-TERM groups and a surviving child, plus an in-process moved clock for the full 20/5/5-second escalation and `not_ended`. Real-Root operational stop/settle drills remain SYL-188. SYL-186 installs the real First Sapling manager from merged readonly source.
 
 `scripts/verify_sql_build.py --fixture --output <private-evidence-folder>` builds First Sapling and an explicitly fictional descendant through the installed Build Tool, with all three checks. Only its disposable source copy gets `roots/fictionalnew`; this is not the second production Root's identity. It then invokes the packaged checks against an earlier working Build, with edited-statement and NOT NULL faults, and with each mandatory tool missing. Use `--root <owner-given-identifier>` instead of `--fixture` once that Root's production files exist. All homes, registries, databases and source fixtures are removed; the requested evidence folder retains reports and Build logs outside Git.
 
@@ -36,6 +36,16 @@ uv run --no-sync ruff check .
 uv run --no-sync mypy
 uv run --no-sync python -B scripts/verify_build.py
 ```
+
+## First Roots operational drills
+
+`roots/sapling/drills/make-sapling.py` creates only an absent First Sapling and builds its manager from clean merged `readonly/arbol-root`. It records each phase and refuses to replay creation over retained data. The real Root's private directory, settings, database and Build remain after success.
+
+`roots/sapling/drills/real-messages.py` only preflights by default. `--send` submits two Haiku messages through the normal owner `anthropic` Subscription, checks acceptance/listing, remembered context and persisted answers/usage, and records each attempt before submission. The private locked ledger enforces the owner's shared ten-message allowance across SYL-186–189. An ambiguous attempt still counts; inspect its evidence before any new submission. A known rate-limit deadline blocks fresh submissions even when a cached usage report shows capacity. These commands write normal Claude session state when sending. They never switch Subscriptions or routes after a refusal.
+
+`roots/sapling/drills/database-away.py` requires no active or unreadable Exchange in any retained Root and no normal Claude Driver run. It stops only the expected installed database launch agent, checks a bounded acceptance refusal with no folder, run or row changes, then restores the unchanged launch agent and proves health. Catchable SIGINT/SIGTERM also restore it; SIGKILL and machine power loss cannot run cleanup. Private-server tests prove success, failure, partial-stop and signal restoration before the operational drill is run.
+
+All receipts, requests, rows and reported costs stay outside Git under `~/.local/share/arbol-root-evidence/first-roots/`, with private permissions and unique attempt directories. Reports never infer a price when the Driver omits cost. Unit discovery uses only private homes and servers, without an account or vendor call. Run operational scripts explicitly with `uv run --no-sync python <script>`; creation, real messages and stopping the installed service are never automatic Build checks.
 
 ## Sylvan Stack 2
 
