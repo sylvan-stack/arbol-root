@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -129,10 +130,13 @@ class IgnoredChild(unittest.TestCase):
             (home/'bin').mkdir()
             (home/'work').mkdir()
             executable = home/'bin/arbol-root'
-            executable.write_text('#!'+os.path.realpath(sys.executable)+'\n'
-                                  'import json,sys,time\n'
-                                  'if sys.argv[-1] == "wait": time.sleep(30)\n'
-                                  'else: print(json.dumps({"root":"sapling","private":True}))\n')
+            script = home/'private manager.py'
+            script.write_text('import json,sys,time\n'
+                              'if sys.argv[-1] == "wait": time.sleep(30)\n'
+                              'else: print(json.dumps({"root":"sapling","private":True}))\n')
+            # Packaged CPython itself lives beneath "Application Support"; never put it in a shebang.
+            executable.write_text('#!/bin/sh\nexec '+shlex.join([os.path.realpath(sys.executable),'-IB',str(script)])
+                                  +' "$@"\n')
             executable.chmod(0o700)
             frame = mock.Mock()
             frame.places.home,frame.places.bin,frame.work,frame.evidence = home,home/'bin',home/'work',home
