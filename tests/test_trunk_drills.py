@@ -17,7 +17,13 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'roots/sapling/drills'))
 from drill_support import DrillError  # noqa: E402
-from trunk_drill_support import StandinHome, existing_rows_unchanged, processes, verify_process  # noqa: E402
+from trunk_drill_support import (  # noqa: E402
+    StandinHome,
+    ended_identity,
+    existing_rows_unchanged,
+    processes,
+    verify_process,
+)
 from trunk_drills import judge_real_interrupted, run_drill  # noqa: E402
 
 
@@ -72,6 +78,19 @@ class PrivateDriver(unittest.TestCase):
 
 
 class ProcessAndRows(unittest.TestCase):
+    def test_persisted_identity_and_exactly_one_matching_end_are_required(self) -> None:
+        """sapling.drill-end-identity"""
+        accepted = {'exchange':'one','chat':'chat','number':2,'trunk':'trivial','build':'3'}
+        row = {'id':'one','chat_id':'chat','number':2,'trunk':'trivial','build':'3','state':'completed','error':None}
+        ended_identity({'exchange':row},accepted,[{'end':{'state':'completed'}}])
+        for events in [[],[{'end':{'state':'failed'}}],[{'end':{'state':'completed'}}]*2]:
+            with self.subTest(events=events),self.assertRaises(DrillError):
+                ended_identity({'exchange':row},accepted,events)
+        with self.assertRaises(DrillError):
+            ended_identity({'exchange':{**row,'build':'changed'}},accepted,[{'end':{'state':'completed'}}])
+        ended_identity({'exchange':{**row,'state':'interrupted'}},accepted,[])
+        ended_identity({'exchange':{**row,'state':'failed','error':{'code':'folder_unwritable'}}},accepted,[])
+
     def test_real_recovery_keeps_every_whole_block_but_never_saves_fragments_as_messages(self) -> None:
         """sapling.drill-real-row-mapping"""
         events = [{'n':1,'event':{'type':'text_delta','text':'incomplete'}},

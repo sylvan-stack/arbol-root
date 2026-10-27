@@ -64,6 +64,19 @@ def existing_rows_unchanged(before: dict[str, Any], after: dict[str, Any]) -> bo
     return True
 
 
+def ended_identity(data: dict[str, Any], accepted: dict[str, Any], events: list[dict[str, Any]]) -> None:
+    row = data['exchange']
+    require(row['id'] == accepted['exchange'] and row['chat_id'] == accepted['chat']
+            and row['number'] == accepted['number'] and row['trunk'] == accepted['trunk']
+            and row['build'] == accepted['build'], 'The persisted end changed the accepted Exchange identity.')
+    endings = [line['end'] for line in events if isinstance(line.get('end'),dict)]
+    if row['state'] == 'interrupted':
+        require(not endings, 'A recovered interrupted Exchange unexpectedly carries an end.')
+    elif (row.get('error') or {}).get('code') != 'folder_unwritable':
+        require(len(endings) == 1 and endings[0].get('state') == row['state'],
+                'The persisted state does not have exactly one matching file end.')
+
+
 class StandinHome:
     def __init__(self, launcher: Path, scenario: str) -> None:
         self.home = Path(tempfile.mkdtemp(prefix='sapling-standin-')).resolve()
@@ -189,6 +202,7 @@ class Exchange:
             return data if row.get('state') == state and not self.folder.exists() else None
         data = dict(wait_for(ended,seconds=seconds,interval=0.2))
         wait_for(lambda:True if self.gone() else None,seconds=20,interval=0.2)
+        ended_identity(data,self.accepted,self.events())
         self.save(data)
         return data
 
