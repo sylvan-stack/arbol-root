@@ -126,7 +126,7 @@ class BackendTables(unittest.TestCase):
             "sapling", 1, self.inputs.file("chat-tables.sql"), self.inputs.folder / "roots/sapling/layout.sql"
         )
         report = run_migration(self.inputs, self.lab, older)
-        self.assertEqual((report["unchangedTables"], report["sourceRows"]), (9, 28))
+        self.assertEqual((report["unchangedTables"], report["sourceRows"]), (12, 28))
         self.assertEqual(
             report["backendTables"], {"exact": True, "sourceCounterUnchanged": True, "savedNextRevisions": [101, 101]}
         )
