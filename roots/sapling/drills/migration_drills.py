@@ -248,6 +248,19 @@ def judge_history(records: list[dict[str, Any]], expected: list[dict[str, Any]])
             'The private Driver run did not receive exactly the migrated whole-message history.')
 
 
+def sql_row_equal(left: dict[str, Any], right: dict[str, Any], dates: tuple[str,...]) -> bool:
+    """Compare known timestamptz columns as instants; never normalize saved text/JSON."""
+    def normalized(row: dict[str, Any]) -> dict[str, Any]:
+        result = dict(row)
+        for key in dates:
+            if result.get(key) is not None:
+                value = datetime.fromisoformat(result[key])
+                require(value.utcoffset() is not None, 'A saved SQL timestamp has no timezone.')
+                result[key] = value.astimezone(UTC).isoformat()
+        return result
+    return normalized(left) == normalized(right)
+
+
 def reconcile_continuation(frame: MigrationFrame, original: Path) -> dict[str, Any]:
     """Requalify only the known completed first check, never start another Exchange."""
     root = frame.places.evidence/'trunk-drills/jensen-continuation'
@@ -283,12 +296,14 @@ def reconcile_continuation(frame: MigrationFrame, original: Path) -> dict[str, A
     require(target['tables']['migrated_chats']['encodedRows'] == before['tables']['migrated_chats']['encodedRows'],
             'Migration provenance changed since the saved continuation.')
     rows = {row['id']:row for row in target['tables']['exchanges']['rows']}
-    require(rows.get(accepted['exchange']) == data['exchange']
+    require(sql_row_equal(rows.get(accepted['exchange'],{}),data['exchange'],('accepted_at','ended_at'))
             and not (frame.places.roots/'jensen/exchanges'/accepted['exchange']).exists(),
             'The completed saved continuation differs from the actual Jensen row/folder.')
     for name in ['messages','runs']:
         actual = [row for row in target['tables'][name]['rows'] if row['exchange_id'] == accepted['exchange']]
-        require(actual == data[name], 'The saved '+name+' no longer match the completed continuation.')
+        require(len(actual) == len(data[name]) and all(sql_row_equal(a,b,('ended_at',) if name == 'runs' else ())
+                for a,b in zip(actual,data[name],strict=True)),
+                'The saved '+name+' no longer match the completed continuation.')
     require(not any(row['exchange_id'] == accepted['exchange'] for row in target['tables']['tool_calls']['rows']),
             'The message-only stand-in continuation acquired an unexpected tool call.')
     current = processes()

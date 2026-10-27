@@ -350,6 +350,17 @@ class ContinuationJudgment(unittest.TestCase):
             with self.assertRaises(DrillError):
                 judge_history(wrong,history)
 
+    def test_saved_timestamp_offsets_compare_as_instants_without_normalizing_text_or_json(self) -> None:
+        """sapling.migration-saved-timezones"""
+        from migration_drills import sql_row_equal
+        left = {'accepted_at':'2026-10-27T03:27:53.835378+00:00','text':'  literal +00:00',
+                'route':{'text':'2026-10-27T03:27:53+00:00'}}
+        right = {**left,'accepted_at':'2026-10-27T04:27:53.835378+01:00'}
+        self.assertTrue(sql_row_equal(left,right,('accepted_at',)))
+        self.assertFalse(sql_row_equal(left,{**right,'text':'literal +00:00'},('accepted_at',)))
+        self.assertFalse(sql_row_equal(left,{**right,'accepted_at':'2026-10-27T04:27:53.835379+01:00'},('accepted_at',)))
+        self.assertFalse(sql_row_equal(left,{**right,'route':{'text':'2026-10-27T04:27:53+01:00'}},('accepted_at',)))
+
     def test_usage_refusal_prevents_reservation_and_ambiguous_acceptance_is_counted_once(self) -> None:
         """sapling.migration-real-budget"""
         from migration_drills import continuation
