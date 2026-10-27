@@ -400,6 +400,50 @@ class Messages(unittest.TestCase):
                     real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
         self.assertEqual(self.calls.starts,0)
 
+    def test_elapsed_cached_limit_permits_one_explicit_same_chat_pair(self) -> None:
+        """sapling.messages-expired-usage"""
+        original = self.calls.run
+        report: dict[str,Any] = {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+                  'windows':[{'limitReached':True,'usedPercent':104,'resetsAt':'2000-01-01T01:00:00Z'},
+                             {'kind':'weekly','usedPercent':20,'limitReached':False}]}
+
+        def run(program: str, *args: str, **options: Any) -> Any:
+            if program == 'arbol-claude-driver' and 'usage' in args:
+                return report
+            return original(program,*args,**options)
+
+        with mock.patch.object(self.calls,'run',side_effect=run):
+            result = real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+        self.assertTrue(result['passed'])
+        self.assertEqual(self.calls.starts,2)
+        self.assertEqual(report['windows'][0]['usedPercent'],104)
+
+    def test_elapsed_window_does_not_hide_unknown_future_or_other_active_limits(self) -> None:
+        """sapling.messages-unproved-reset"""
+        original = self.calls.run
+        expired = {'limitReached':True,'resetsAt':'2000-01-01T01:00:00Z'}
+        reports: list[dict[str,Any]] = [
+            {'outcome':'ok','windows':[expired]},
+            {'outcome':'ok','fetchedAt':'invalid','windows':[expired]},
+            {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00','windows':[expired]},
+            {'outcome':'ok','fetchedAt':'2000-01-01T02:00:00Z','windows':[expired]},
+            {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+             'windows':[{'limitReached':True,'resetsAt':'2099-01-01T00:00:00Z'}]},
+            {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+             'windows':[{'limitReached':True,'resetsAt':'invalid'}]},
+            {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+             'windows':[expired,{'usedPercent':100,'resetsAt':'2099-01-01T00:00:00Z'}]},
+        ]
+        for report in reports:
+            def run(program: str, *args: str, selected: dict[str,Any] = report, **options: Any) -> Any:
+                if program == 'arbol-claude-driver' and 'usage' in args:
+                    return selected
+                return original(program,*args,**options)
+            with self.subTest(report=report),mock.patch.object(self.calls,'run',side_effect=run):
+                with self.assertRaises(DrillError):
+                    real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+        self.assertEqual(self.calls.starts,0)
+
     def test_judgement_refuses_lost_history_wrong_route_or_missing_usage(self) -> None:
         """sapling.messages-judgement"""
         request = self.places.evidence/'request.json'

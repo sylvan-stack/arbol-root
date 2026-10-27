@@ -5,10 +5,36 @@ from __future__ import annotations
 import math
 import time
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
 from drill_support import Budget, Commands, Inspector, Places, new_json, require, wait_for
+
+
+def usage_available(report: dict[str, Any], current: float) -> bool:
+    """A last-run limit expires only with valid pre-reset evidence."""
+    windows = report.get('windows')
+    if report.get('outcome') != 'ok' or not isinstance(windows,list):
+        return False
+    for window in windows:
+        if not isinstance(window,dict):
+            return False
+        used = window.get('usedPercent',0)
+        if not isinstance(used,(float,int)) or isinstance(used,bool) or not math.isfinite(used):
+            return False
+        if window.get('limitReached') is not True and used < 100:
+            continue
+        try:
+            fetched = datetime.fromisoformat(report['fetchedAt'])
+            reset = datetime.fromisoformat(window['resetsAt'])
+            if fetched.utcoffset() is None or reset.utcoffset() is None:
+                return False
+            if not fetched.timestamp() < reset.timestamp() <= current:
+                return False
+        except (KeyError,TypeError,ValueError,OverflowError):
+            return False
+    return True
 
 
 def snapshot(inspector: Inspector, exchange: str) -> dict[str, Any]:
@@ -59,9 +85,7 @@ def real_messages(places: Places, *, send: bool = False, commands: Commands | No
     subscription = calls.run('arbol-claude-driver','subscriptions','check','anthropic')
     require(subscription.get('state') == 'signed_in', 'The normal owner anthropic Subscription is not signed in.')
     usage = calls.run('arbol-claude-driver','subscriptions','usage','anthropic')
-    require(usage.get('outcome') == 'ok' and isinstance(usage.get('windows'),list)
-            and all(window.get('limitReached') is not True and window.get('usedPercent',0) < 100
-                    for window in usage['windows']),
+    require(usage_available(usage,time.time()),
             'The owner usage report is unavailable or reports a reached limit; no message was sent.')
     listing = calls.run('arbol-root','--root','sapling','list')
     require(listing.get('exchanges') == [] and listing.get('unreadable') == [],
