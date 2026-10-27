@@ -23,10 +23,55 @@ from drill_support import Budget, Commands, DrillError, Inspector, Places, new_j
 from rct_conformance.postgres import Server  # noqa: E402
 from sapling_creation import make_sapling  # noqa: E402
 from sapling_messages import judge, real_messages  # noqa: E402
-from sapling_outage import DirectoryWatch, stopped  # noqa: E402
+from sapling_outage import DirectoryWatch, Installed, stopped  # noqa: E402
 
 
 class Outage(unittest.TestCase):
+    def test_installed_stop_completes_smart_shutdown_with_an_established_private_connection(self) -> None:
+        """sapling.connected-shutdown: refusing new clients alone is not a database outage."""
+        with tempfile.TemporaryDirectory(prefix='sapling private connected outage ') as temporary:
+            home = Path(temporary).resolve()
+            server = Server.create(home/'postgres',home=home)
+            client = subprocess.Popen([server.tools['psql'],'--no-psqlrc','--quiet','--no-align',
+                                       '--tuples-only','--dbname',server.url('postgres')],
+                                      stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                      text=True)
+            try:
+                assert client.stdin is not None and client.stdout is not None
+                client.stdin.write('SELECT 1;\n')
+                client.stdin.flush()
+                self.assertEqual(client.stdout.readline().strip(),'1')
+                service = Installed.__new__(Installed)
+                service.places = Places(home,home/'bin',home/'evidence')
+                service.data,service.pg_ctl,service.service = server.data,server.tools['pg_ctl'],'private-service'
+
+                def bootout(*args: str) -> subprocess.CompletedProcess[str]:
+                    self.assertEqual(args,('bootout','private-service'))
+                    pid = server.postmaster_pid()
+                    assert pid is not None and client.stdin is not None and client.stdout is not None
+                    os.kill(pid,signal.SIGTERM)
+                    # Smart shutdown leaves this already-established connection usable.
+                    client.stdin.write('SELECT 2;\n')
+                    client.stdin.flush()
+                    self.assertEqual(client.stdout.readline().strip(),'2')
+                    return subprocess.CompletedProcess(args,0,'','')
+
+                with mock.patch.object(service,'command',side_effect=bootout),\
+                        mock.patch.object(service,'healthy',side_effect=server.running):
+                    service.stop()
+                self.assertFalse(server.running())
+                self.assertFalse((server.data/'postmaster.pid').exists())
+                output,_diagnostics = client.communicate('SELECT 3;\n',timeout=5)
+                self.assertNotEqual(client.returncode,0)
+                self.assertNotIn('3',output.splitlines())
+                server.start()
+                self.assertIs(server.value('postgres','SELECT to_json(true)'),True)
+            finally:
+                if client.poll() is None:
+                    client.kill()
+                client.communicate(timeout=5)
+                server.remove()
+
     def test_private_server_is_restored_after_success_failure_partial_stop_and_real_signals(self) -> None:
         """sapling.restore: success, errors, partial stops and real SIGINT/SIGTERM all restore and prove health."""
         with tempfile.TemporaryDirectory(prefix='sapling private outage ') as temporary:
