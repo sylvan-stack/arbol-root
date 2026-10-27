@@ -184,6 +184,7 @@ class MigrationHelpers(unittest.TestCase):
         """sapling.migration-copy-judgment"""
         from migration_drills import judge_copy
         source = self.database('copyjudge')
+        self.lab.run_file('copyjudge',ROOT/'roots/sapling/layout.sql')
         self.lab.server.createdb('copytarget')
         self.lab.run_file('copytarget',ROOT/'contract/1/layout.sql')
         self.lab.run_file('copytarget',ROOT/'roots/jensen/layout.sql')
