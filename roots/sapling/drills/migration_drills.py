@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 import signal
 import stat
+import time
+import uuid
+from collections.abc import Callable
 from contextlib import closing
 from datetime import UTC, datetime
 from types import FrameType
 from typing import Any
 
-from drill_support import Inspector, Places, document, new_json, require, wait_for
+from drill_support import Budget, Inspector, Places, document, new_json, require, wait_for
 from migration_support import (
     TABLES,
     Command,
@@ -22,6 +27,7 @@ from migration_support import (
     fingerprints,
     thaw_client,
 )
+from sapling_messages import judge, usage_available
 from sapling_outage import stopped
 from stopping_support import frozen
 from trunk_drill_support import verify_process
@@ -168,14 +174,153 @@ def open_exchange(frame: MigrationFrame) -> dict[str, Any]:
             'sourceOriginalCompleted':True,'targetSnapshotUnchanged':True,'migrated':migrated,**judgment}
 
 
-OPERATIONS = {'failure':failure,'open-exchange':open_exchange}
+def ready(frame: MigrationFrame) -> dict[str, Any]:
+    qualified(frame.places,'open-exchange')
+    number = preparing(frame)
+    target = Inspector(frame.places,root='jensen')
+    source_before = Snapshot(frame.inspector).read()
+    target_before = Snapshot(target,provenance=True).read()
+    try:
+        changed = frame.calls.run('arbol-roots','ready','jensen')
+    finally:
+        # Adopt only the observed current Root for cleanup, even after an ambiguous command.
+        roots = frame.calls.run('arbol-roots','list')
+        current = [x['root'] for x in roots if x.get('current')]
+        require(len(current) == 1 and current[0] in ('sapling','jensen'), 'Current Root became ambiguous at ready.')
+        frame.current = current[0]
+    require(changed.get('root') == 'jensen' and changed.get('status') == 'working' and frame.current == 'jensen',
+            'Jensen was not made working/current.')
+    default = frame.calls.run('arbol-root','list')
+    require(default.get('root') == 'jensen' and default.get('rootBuild') == number,
+            'The default launcher did not resolve Jensen and its qualified manager.')
+    require(fingerprints(Snapshot(frame.inspector).read()) == fingerprints(source_before)
+            and fingerprints(Snapshot(target,provenance=True).read()) == fingerprints(target_before),
+            'Ready changed database rows.')
+    require(frame.calls.run('arbol-roots','show','sapling')['status'] == 'working', 'First Sapling stopped working.')
+    probe = frame.root_exchange('sapling','R5').start('First Sapling still works after Jensen becomes current.')
+    probe.finish('completed')
+    before_refusal = Snapshot(frame.inspector).read()
+    record = (frame.places.roots/'jensen/root.json').read_bytes()
+    refused = frame.calls.run('arbol-roots','migrate','jensen',status=1)
+    require(refused.get('error',{}).get('code') == 'invalid_input', 'Working Jensen migration was not refused.')
+    require(fingerprints(Snapshot(frame.inspector).read()) == fingerprints(before_refusal)
+            and fingerprints(Snapshot(target,provenance=True).read()) == fingerprints(target_before)
+            and (frame.places.roots/'jensen/root.json').read_bytes() == record,
+            'Refused migration changed a Root or its rows.')
+    return {'root':'jensen','rootBuild':number,'currentRoot':'jensen','defaultRoot':default['root'],
+            'sourceProbeExchange':probe.id,'sourceProbeChat':probe.chat,'sourceStillWorking':True,
+            'workingMigrationRefused':refused,'ready':changed,'migratedRowsUnchanged':True}
+
+
+def original_chat(places: Places) -> str:
+    proof = document((places.evidence/'SYL-186-real-messages-cost-reconciled.json').read_bytes())
+    require(proof.get('passed') is True and proof.get('root') == 'sapling' and len(proof.get('messages',[])) == 2,
+            'The original successful real-chat receipt is unavailable.')
+    return str(uuid.UUID(proof['chat']))
+
+
+def chat_history(value: dict[str, Any], chat: str) -> tuple[list[dict[str, Any]],int,str]:
+    tables = value['tables']
+    exchanges = [x for x in tables['exchanges']['rows'] if x['chat_id'] == chat]
+    require(exchanges and all(x['state'] != 'open' for x in exchanges), 'The migrated chat is missing or busy.')
+    numbers = {x['id']:x['number'] for x in exchanges if not x['replaced_by']}
+    require(not any(x['exchange_id'] in numbers for x in tables['tool_calls']['rows']),
+            'The selected real verification chat must have message history only.')
+    messages = sorted((x for x in tables['messages']['rows'] if x['exchange_id'] in numbers),
+                      key=lambda x:(numbers[x['exchange_id']],x['position']))
+    history = [{'type':'message','role':x['role'],'text':x['text']} for x in messages]
+    first = next((x['text'] for x in messages if x['role'] == 'user'), '')
+    word = re.search(r'verification word for this chat: ([a-z0-9]+)',first)
+    require(word is not None, 'The migrated verification word is not in the original saved user message.')
+    assert word is not None
+    return history,max(x['number'] for x in exchanges)+1,word[1]
+
+
+def target_preserved(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    return all(set(table['encodedRows']) <= set(after['tables'][name]['encodedRows'])
+               for name,table in before['tables'].items())
+
+
+def continuation(frame: MigrationFrame, *, real: bool = False) -> dict[str, Any]:
+    qualified(frame.places,'ready')
+    if real:
+        qualified(frame.places,'continuation')
+    chat = original_chat(frame.places)
+    target = Inspector(frame.places,root='jensen')
+    before = Snapshot(target,provenance=True).read()
+    source_before = fingerprints(Snapshot(frame.inspector).read())
+    history,number,word = chat_history(before,chat)
+    new_json(frame.evidence/'jensen-before-continuation.json',before)
+    exchange = frame.root_exchange('jensen',None if real else 'R5',chat)
+    budget = Budget(frame.places.evidence)
+    if real:
+        require(frame.calls.run('arbol-claude-driver','subscriptions','check','anthropic').get('state') == 'signed_in',
+                'The normal owner anthropic Subscription is not signed in.')
+        require(usage_available(frame.calls.run('arbol-claude-driver','subscriptions','usage','anthropic'),time.time()),
+                'Normal owner usage is unavailable or at an unexpired limit; no message was submitted.')
+        prior = budget.status()
+        require(prior['remaining'] >= 1 and all((x.get('usage') or {}).get('retryNotBeforeUnix',0) <= time.time()
+                for x in prior['attempts']), 'The shared budget/retry deadline refuses this real continuation.')
+    message = ('What exact verification word did I give you at the beginning of this chat, before the migration? '
+               'Reply with that word only.') if real else 'Continue this migrated chat in Jensen Root.'
+    new_json(frame.evidence/'submission.json',{'root':'jensen','chat':chat,'exchange':exchange.id,'message':message,
+                                            'number':number,'real':real})
+    submitted = False
+    if real:
+        budget.reserve(exchange.id,'SYL-189')
+    try:
+        submitted = True
+        exchange.start(message)
+        require(exchange.accepted['number'] == number, 'The migrated chat did not take its next Exchange number.')
+        def terminal() -> dict[str, Any] | None:
+            value = exchange.persisted()
+            row = value.get('exchange') or {}
+            return value if row.get('state') in ('completed','failed','cancelled','interrupted') and not exchange.folder.exists() else None
+        ended = wait_for(terminal,seconds=300 if real else 35,interval=0.2)
+        data = exchange.finish(ended['exchange']['state'])
+        if real:
+            verdict = judge(data,exchange.accepted,message,number,remembered=word)
+            budget.finish(exchange.id,'completed',usage={k:verdict[k] for k in
+                                                       ['inputTokens','outputTokens','reportedCostUSD']})
+        else:
+            assert exchange.fixture is not None
+            records = exchange.fixture.records()
+            require(len(records) == 1 and records[0]['request'].get('history') == history,
+                    'The private Driver did not receive exactly the migrated whole-message history.')
+            new_json(frame.evidence/'received-history.json',records)
+            verdict = {'historyItems':len(history),'receivedHistoryExact':True}
+    except BaseException:
+        if real:
+            usage = None
+            try:
+                cause = (exchange.persisted().get('exchange') or {}).get('error') or {}
+                retry = cause.get('retryAfterSeconds')
+                if (cause.get('code') == 'rate_limited' and isinstance(retry,(int,float))
+                        and not isinstance(retry,bool) and math.isfinite(retry) and retry >= 0):
+                    usage = {'error':'rate_limited','retryNotBeforeUnix':time.time()+retry}
+            except Exception:
+                pass
+            budget.finish(exchange.id,'ambiguous' if submitted else 'no_vendor',usage=usage)
+        raise
+    after = Snapshot(target,provenance=True).read()
+    new_json(frame.evidence/'jensen-after-continuation.json',after)
+    require(target_preserved(before,after) and fingerprints(Snapshot(frame.inspector).read()) == source_before,
+            'Continuation changed old Jensen rows or any First Sapling row.')
+    frame.preflight(allow_owned=True)
+    return {'root':'jensen','chat':chat,'exchange':exchange.id,'number':number,'realMessages':1 if real else 0,
+            'oldJensenRowsPreserved':True,'sourceFingerprintUnchanged':True,'verdict':verdict,
+            'budget':budget.status() if real else None}
+
+
+OPERATIONS: dict[str, Callable[[MigrationFrame],dict[str,Any]]] = {'failure':failure,'open-exchange':open_exchange,'ready':ready,'continuation':continuation,
+              'real-continuation':lambda frame:continuation(frame,real=True)}
 
 
 def run_phase(name: str) -> dict[str, Any]:
     places = Places.owner()
     root = places.evidence/'jensen-drills'/name
     require(not list(root.glob('*/qualified.json')), 'This Jensen phase is already qualified; inspect its receipt.')
-    frame = MigrationFrame('jensen-'+name)
+    frame = MigrationFrame('jensen-'+name,current='jensen' if name in ('continuation','real-continuation') else 'sapling')
     try:
         try:
             details = OPERATIONS[name](frame)
@@ -184,7 +329,7 @@ def run_phase(name: str) -> dict[str, Any]:
             raise
     finally:
         frame.close()
-    report = {'check':'sapling.jensen-'+name,**frame.proof(),**details,'realMessages':0}
+    report = {'check':'sapling.jensen-'+name,**frame.proof(),**details,'realMessages':details.get('realMessages',0)}
     receipt = root/frame.evidence.name/'qualified.json'
     new_json(receipt,report)
     new_json(frame.evidence/'qualified.json',report)
@@ -194,7 +339,12 @@ def run_phase(name: str) -> dict[str, Any]:
 def entry(name: str) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run',action='store_true')
+    if name == 'continuation':
+        parser.add_argument('--send',action='store_true')
     args = parser.parse_args()
+    if getattr(args,'send',False):
+        require(args.run, '--send also requires --run.')
+        name = 'real-continuation'
     previous = {n:signal.getsignal(n) for n in (signal.SIGINT,signal.SIGTERM)}
     def interrupted(number: int, frame: FrameType | None) -> None:
         raise KeyboardInterrupt('Jensen drill interrupted by signal '+str(number))

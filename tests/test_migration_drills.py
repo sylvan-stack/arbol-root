@@ -311,3 +311,100 @@ class RootOwnership(unittest.TestCase):
                 snap.assert_called_once_with(i,exchange.id)
             with self.assertRaises(DrillError):
                 Exchange(frame,None,root='Uppercase')
+
+
+class ContinuationJudgment(unittest.TestCase):
+    @staticmethod
+    def history() -> dict[str, Any]:
+        return {'tables':{'chats':{'rows':[{'id':'chat'}]},'exchanges':{'rows':[
+            {'id':'first','chat_id':'chat','number':1,'state':'completed','replaced_by':None},
+            {'id':'second','chat_id':'chat','number':2,'state':'completed','replaced_by':None}]},
+            'messages':{'rows':[{'exchange_id':'second','position':1,'role':'assistant','text':'later 🌲  '},
+                {'exchange_id':'first','position':0,'role':'user','text':'verification word for this chat: pine123.'},
+                {'exchange_id':'first','position':1,'role':'assistant','text':'pine123'},
+                {'exchange_id':'second','position':0,'role':'user','text':'Remember it?'}]},
+            'tool_calls':{'rows':[]}}}
+
+    def test_saved_chat_history_has_exact_order_word_and_next_number_and_refuses_busy(self) -> None:
+        """sapling.migration-history-judgment"""
+        from migration_drills import chat_history
+        value = self.history()
+        history,number,word = chat_history(value,'chat')
+        self.assertEqual((number,word),(3,'pine123'))
+        self.assertEqual([x['text'] for x in history],['verification word for this chat: pine123.','pine123',
+                                                     'Remember it?','later 🌲  '])
+        value['tables']['exchanges']['rows'][1]['state']='open'
+        with self.assertRaises(DrillError):
+            chat_history(value,'chat')
+
+    def test_usage_refusal_prevents_reservation_and_ambiguous_acceptance_is_counted_once(self) -> None:
+        """sapling.migration-real-budget"""
+        from migration_drills import continuation
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            frame = mock.Mock()
+            frame.places = Places(home,home/'bin',home)
+            frame.evidence = home
+            frame.root_exchange.return_value.id = 'owned-exchange'
+            limited = {'state':'signed_in','outcome':'ok','windows':[{'usedPercent':100,'limitReached':True}]}
+            frame.calls.run.return_value = limited
+            with mock.patch('migration_drills.qualified'),mock.patch('migration_drills.original_chat',return_value='chat'),\
+                    mock.patch('migration_drills.Inspector'),mock.patch('migration_drills.Snapshot') as snap,\
+                    mock.patch('migration_drills.Budget') as budget, mock.patch('migration_drills.fingerprints',return_value={}):
+                snap.return_value.read.return_value = self.history()
+                with self.assertRaisesRegex(DrillError,'usage'):
+                    continuation(frame,real=True)
+                budget.return_value.reserve.assert_not_called()
+                frame.root_exchange.return_value.start.assert_not_called()
+                frame.evidence = home/'next-attempt'
+                frame.calls.run.return_value = {'state':'signed_in','outcome':'ok','windows':[]}
+                budget.return_value.status.return_value = {'remaining':6,'attempts':[]}
+                frame.root_exchange.return_value.start.side_effect = DrillError('ambiguous acceptance')
+                frame.root_exchange.return_value.persisted.return_value = {'exchange':None}
+                with self.assertRaisesRegex(DrillError,'ambiguous acceptance'):
+                    continuation(frame,real=True)
+                budget.return_value.reserve.assert_called_once_with('owned-exchange','SYL-189')
+                budget.return_value.finish.assert_called_once_with('owned-exchange','ambiguous',usage=None)
+                frame.root_exchange.return_value.start.assert_called_once()
+
+
+class ReadyJudgment(unittest.TestCase):
+    def test_ready_changes_cleanup_root_only_from_observed_catalogue_even_after_ambiguous_reply(self) -> None:
+        """sapling.migration-ready-judgment"""
+        from migration_drills import ready
+        for ambiguous in (False,True):
+            with self.subTest(ambiguous=ambiguous),tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                frame = mock.Mock()
+                frame.places = Places(home,home/'bin',home)
+                frame.current = 'sapling'
+                path = frame.places.roots/'jensen/root.json'
+                path.parent.mkdir(parents=True)
+                path.write_text('unchanged root bytes')
+                def command(program: str, *args: str, broken: bool = ambiguous, **kwargs: Any) -> Any:
+                    if args == ('ready','jensen'):
+                        if broken:
+                            raise DrillError('ambiguous ready reply')
+                        return {'root':'jensen','status':'working'}
+                    if program == 'arbol-roots' and args == ('list',):
+                        return [{'root':'jensen','current':True}]
+                    if program == 'arbol-root' and args == ('list',):
+                        return {'root':'jensen','rootBuild':'4'}
+                    if args == ('show','sapling'):
+                        return {'root':'sapling','status':'working'}
+                    if args == ('migrate','jensen') and kwargs.get('status') == 1:
+                        return {'error':{'code':'invalid_input'}}
+                    self.fail(str((program,args,kwargs)))
+                frame.calls.run.side_effect = command
+                with mock.patch('migration_drills.qualified'),mock.patch('migration_drills.preparing',return_value='4'),\
+                        mock.patch('migration_drills.Inspector'),mock.patch('migration_drills.Snapshot') as snap:
+                    snap.return_value.read.return_value = {'tables':{}}
+                    if ambiguous:
+                        with self.assertRaisesRegex(DrillError,'ambiguous ready reply'):
+                            ready(frame)
+                        frame.root_exchange.assert_not_called()
+                    else:
+                        proof = ready(frame)
+                        self.assertEqual(proof['currentRoot'],'jensen')
+                        frame.root_exchange.assert_called_once_with('sapling','R5')
+                self.assertEqual(frame.current,'jensen')
