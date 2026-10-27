@@ -51,3 +51,5 @@ def seed(server: Server, database: str) -> None:
                           f"{document({'model':'fictional','extra':SPECIAL})},'2026-10-15T09:01:00Z');")
     statements.append(f"UPDATE exchanges SET replaced_by='{EXCHANGES[2]}' WHERE id='{EXCHANGES[1]}';")
     server.execute(database, '\n'.join(statements))
+    from scripts.backend_tables import seed as backend_seed
+    backend_seed(server, database, CHATS, EXCHANGES, SPECIAL)

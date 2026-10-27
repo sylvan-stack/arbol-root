@@ -44,7 +44,7 @@ class MigrationCheck(unittest.TestCase):
         (folder / 'contract/1').mkdir(parents=True)
         shutil.copy2(ROOT / 'contract/1/layout.sql',folder / 'contract/1/layout.sql')
         (folder / 'roots/fictionalold').mkdir(parents=True)
-        shutil.copy2(ROOT / 'roots/sapling/layout.sql',folder / 'roots/fictionalold/layout.sql')
+        shutil.copy2(ROOT / 'tests/fixtures/migration-root/source-layout.sql',folder / 'roots/fictionalold/layout.sql')
         home = base / 'private-home'
         header = home / 'Library/Application Support/Arbol/roots/fictionalold'
         header.mkdir(parents=True)

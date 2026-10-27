@@ -1,0 +1,2 @@
+-- Fictional legacy source Root with chat tables only.
+-- Its exact old protocol fixture remains independent of current production Root additions.

@@ -14,8 +14,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from scripts.backend_tables import counter, present
+from scripts.backend_tables import rows as backend_rows
 from scripts.migration_fixtures import CHATS, EXCHANGES, seed
-from scripts.migration_protocol import REQUIRED, mode_protocol
+from scripts.migration_protocol import mode_protocol, protocol
 from scripts.sql_support import BuildInput, SqlLab
 
 TABLES = ('chats','exchanges','messages','tool_calls','runs','migrated_chats')
@@ -38,7 +40,8 @@ def same(expected: Any, actual: Any, detail: str) -> None:
 def invoke(lab: SqlLab, inputs: BuildInput, source: str, target: str, mode: str,
            chat: str | None = None, *, extra: dict[str,str] | None = None) -> subprocess.CompletedProcess[str]:
     flag = {'arbol_migrate_check':'1'} if mode == 'check' else {'arbol_migrate_chat':str(chat)} if mode == 'chat' else {}
-    allowed = {'progress.copy'} if mode == 'check' else REQUIRED
+    script = inputs.file('migrate.sql').read_text(encoding='utf-8')
+    allowed = protocol(script) if mode == 'whole' else mode_protocol(script,mode)
     with tempfile.TemporaryDirectory(prefix='chat-migration-',dir=lab.server.home) as directory:
         folder = Path(directory)
         same(0o700,stat.S_IMODE(folder.stat().st_mode),'copy directory privacy')
@@ -225,6 +228,10 @@ def check_modes(inputs: BuildInput, lab: SqlLab) -> dict[str,Any]:
         before = history(lab,target)
         if chat==CHATS[1]:
             # Remove the source's unrelated chat's dependent rows in this disposable fixture only.
+            if present(lab.server,source):
+                lab.server.execute(source,f"DELETE FROM exchange_notes WHERE exchange_id='{EXCHANGES[3]}'; "
+                                   f"DELETE FROM drafts WHERE chat_id='{chat}'; DELETE FROM chat_settings WHERE chat_id='{chat}'; "
+                                   f"DELETE FROM chat_marks WHERE chat_id='{chat}';")
             lab.server.execute(source,f"DELETE FROM messages WHERE exchange_id='{EXCHANGES[3]}'; DELETE FROM tool_calls WHERE exchange_id='{EXCHANGES[3]}'; DELETE FROM runs WHERE exchange_id='{EXCHANGES[3]}'; DELETE FROM exchanges WHERE id='{EXCHANGES[3]}'; DELETE FROM chats WHERE id='{chat}';")
         answer = invoke(lab,inputs,source,target,'chat',chat)
         same(3,answer.returncode,'unknown-chat status 3')
@@ -247,7 +254,64 @@ def check_modes(inputs: BuildInput, lab: SqlLab) -> dict[str,Any]:
     # Apart from explicit fixture advancement, no mode has written the source.
     expected_source = chat_rows(source_now,CHATS[0])
     same(expected_source,history(lab,source),'read-only source')
-    return {'modes':list(inputs.modes),'staleOnly':True,'exactHistory':True,'uncontinuedReplaced':True,
+    report: dict[str,Any] = {'modes':list(inputs.modes),'staleOnly':True,'exactHistory':True,'uncontinuedReplaced':True,
             'continuedPreserved':True,'remappedReplaced':True,'sourceUnchanged':True,
             'unknownTargetStatus':3,'unknownSourceStatus':3,'busyStatus':3,'bothFlagsStatus':3,
             'regressionRefused':True,'collisionRefused':True,'concurrentAcceptancePreserved':True}
+    if present(lab.server,target):
+        report['backendRows'] = backend_modes(inputs,lab)
+    return report
+
+
+def backend_modes(inputs: BuildInput, lab: SqlLab) -> dict[str,bool]:
+    """Qualify the selected copied SQL, including metadata not covered by the chat-history check."""
+    source,target = 'backend_source_'+uuid.uuid4().hex,'backend_target_'+uuid.uuid4().hex
+    for database in [source,target]:
+        lab.server.createdb(database)
+        lab.run_file(database,inputs.file('chat-tables.sql'))
+        lab.run_file(database,inputs.folder/'roots'/str(inputs.older)/'layout.sql' if database==source
+                     else inputs.file('root-tables.sql'))
+    seed(lab.server,source)
+    answer = invoke(lab,inputs,source,target,'whole')
+    if answer.returncode:
+        raise ValueError('Backend-mode seed migration failed: '+answer.stderr)
+    original,original_counter = backend_rows(lab.server,source),counter(lab.server,source)
+    lab.server.execute(target,f"UPDATE drafts SET text='Root-local Draft' WHERE chat_id='{CHATS[0]}'; "
+                       f"UPDATE chat_settings SET working_folder='/fictional/local' WHERE chat_id='{CHATS[0]}'; "
+                       f"UPDATE chat_marks SET ongoing=false WHERE chat_id='{CHATS[0]}'")
+    local,local_counter = backend_rows(lab.server,target),counter(lab.server,target)
+    reply(invoke(lab,inputs,source,target,'check'),'check')
+    same(local,backend_rows(lab.server,target),'comparison backend rows')
+    result = reply(invoke(lab,inputs,source,target,'chat',CHATS[0]),'chat')
+    same('replaced',result['action'],'backend uncontinued choice')
+    same(local,backend_rows(lab.server,target),'replacement local Draft/settings/marks/notes')
+    lab.server.execute(target,f"UPDATE drafts SET sent_as='50000000-0000-4000-8000-000000000009',"
+                       f"sent_request='{{}}' WHERE chat_id='{CHATS[0]}'")
+    before,before_history = backend_rows(lab.server,target),history(lab,target)
+    answer = invoke(lab,inputs,source,target,'chat',CHATS[0])
+    if answer.returncode != 3 or 'unresolved send' not in answer.stderr:
+        raise ValueError('Replacing an unresolved target Draft did not refuse.')
+    same(before,backend_rows(lab.server,target),'unresolved Draft refusal')
+    same(before_history,history(lab,target),'unresolved Draft history rollback')
+    lab.server.execute(target,f"UPDATE drafts SET sent_as=NULL,sent_request=NULL WHERE chat_id='{CHATS[0]}'; "
+                       f"INSERT INTO exchanges SELECT '{uuid.uuid4()}',chat_id,4,'open',NULL,trunk,build,route,"
+                       f"small_call_route,working_folder,clock_timestamp(),NULL,NULL FROM exchanges WHERE id='{EXCHANGES[2]}'")
+    local = backend_rows(lab.server,target)
+    for _ in range(2):
+        result = reply(invoke(lab,inputs,source,target,'chat',CHATS[0] if _==0 else result['resultChat']),'chat')
+        after = backend_rows(lab.server,target)
+        for table in ('drafts','chat_settings','chat_marks'):
+            same(local[table],after[table],'Root-local '+table+' after new/remapped copy')
+        notes = lab.server.rows(target,f"SELECT n.*,e.number FROM exchange_notes n JOIN exchanges e ON e.id=n.exchange_id "
+                               f"WHERE e.chat_id='{result['resultChat']}'")
+        if (len(notes) != 1 or notes[0]['number'] != 1 or notes[0]['kind'] != 'ended_stuck'
+                or notes[0]['exchange_id'] == EXCHANGES[0]):
+            raise ValueError('Imported notes lost or reused their Exchange mapping.')
+        for old in local['exchange_notes']:
+            if old not in after['exchange_notes']:
+                raise ValueError('The continued/unrelated copy lost an old note.')
+    same(local_counter,counter(lab.server,target),'reimport Draft counter')
+    same(original,backend_rows(lab.server,source),'source backend rows')
+    same(original_counter,counter(lab.server,source),'source Draft counter')
+    return {'localInputPreserved':True,'notesRemapped':True,'counterUnchanged':True,
+            'pendingSendRefused':True,'sourceUnchanged':True}

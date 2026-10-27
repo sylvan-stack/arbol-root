@@ -30,6 +30,13 @@ AND (coalesce(btrim(obj_description(c.oid,'pg_class')),'')=''
      OR (a.attname IS NOT NULL AND coalesce(btrim(col_description(c.oid,a.attnum)),'')=''))
 ORDER BY n.nspname,c.relname,a.attnum
 """
+SEQUENCE_COMMENTS = """
+SELECT n.nspname AS schema, c.relname AS sequence
+FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+WHERE c.relkind='S' AND n.nspname NOT LIKE 'pg_%' AND n.nspname<>'information_schema'
+AND coalesce(btrim(obj_description(c.oid,'pg_class')),'')=''
+ORDER BY 1,2
+"""
 
 
 def run_layout(inputs: BuildInput, lab: SqlLab) -> dict[str, Any]:
@@ -43,6 +50,9 @@ def run_layout(inputs: BuildInput, lab: SqlLab) -> dict[str, Any]:
     missing = lab.server.rows(database, COMMENTS)
     if missing:
         raise ValueError(f'Every table and column needs a nonempty comment: {missing}')
+    missing_sequences = lab.server.rows(database, SEQUENCE_COMMENTS)
+    if missing_sequences:
+        raise ValueError(f'Every sequence needs a nonempty comment: {missing_sequences}')
     before = catalog(lab.server, database)
     dumped = lab.dump(database)
     for file in files:
