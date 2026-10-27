@@ -84,3 +84,27 @@ class LayoutCopy(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.copy()
         self.assertFalse((self.folder / 'layout').exists())
+
+
+    def test_optional_modes_copy_exactly_and_bad_or_lineageless_capabilities_write_nothing(self) -> None:
+        """root.layout-migration-modes"""
+        from scripts.migration_modes import CAPABILITY
+        descriptor = self.repo/'roots/second/migration-modes.json'
+        descriptor.write_text(json.dumps(CAPABILITY,indent=1)+'\n')
+        with self.assertRaises(ValueError):
+            self.copy()
+        self.assertFalse((self.folder/'layout').exists())
+        self.metadata['grewFrom']='sapling'
+        self.write_root()
+        for value in [{'version':True,'modes':['check','chat']},{'version':1,'modes':['chat']}]:
+            descriptor.write_text(json.dumps(value))
+            with self.assertRaises(ValueError):
+                self.copy()
+            self.assertFalse((self.folder/'layout').exists())
+        descriptor.write_text(json.dumps(CAPABILITY,indent=1)+'\n')
+        self.assertEqual(self.copy()['migrationModes'],CAPABILITY)
+        copied = self.folder/'layout/migration-modes.json'
+        self.assertEqual(copied.read_bytes(),descriptor.read_bytes())
+        descriptor.unlink()
+        self.assertNotIn('migrationModes',self.copy())
+        self.assertFalse(copied.exists())

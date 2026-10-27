@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from scripts.migration_modes import branch
 from scripts.sql_statements import Statement, statements
 
 COPY = re.compile(r"\\copy\s+.+\s+(TO|FROM)\s+'([A-Za-z][A-Za-z_0-9]*\.copy)'\s+WITH\s+\(FORMAT\s+binary\)", re.I)
@@ -13,6 +14,10 @@ SOURCE = [('begin','isolation','level','repeatable','read','read','only'),
 
 
 def protocol(source: str) -> set[str]:
+    return whole_protocol(branch(source))
+
+
+def whole_protocol(source: str) -> set[str]:
     phase = 0
     active = {1:False,2:False}
     sql: dict[int,list[Statement]] = {1:[],2:[]}
@@ -87,3 +92,79 @@ def protocol(source: str) -> set[str]:
     if copied[1] != copied[2] or not REQUIRED <= copied[1]:
         raise ValueError('Every required table is copied once out of the source and once into the destination.')
     return copied[1]
+
+
+def mode_protocol(source: str, mode: str) -> set[str]:
+    """Verify optional modes' connections, read-only boundaries and private binary files before execution."""
+    if mode not in ('check','chat'):
+        raise ValueError('Only documented in-use migration modes may be checked.')
+    phase = 0
+    active = False
+    begins = {0:0,1:0,2:0}
+    commits = {0:0,1:0,2:0}
+    copies: dict[int,set[str]] = {1:set(),2:set()}
+    named = False
+    buffer: list[str] = []
+
+    def flush() -> None:
+        nonlocal active
+        for statement in statements('\n'.join(buffer)):
+            if statement[0] == 'begin':
+                expected = {0:[('begin','read','only'),('begin','isolation','level','repeatable','read','read','only')],
+                            1:[('begin','isolation','level','repeatable','read','read','only')],2:[('begin',)]}
+                if active or statement not in expected[phase] or begins[phase]:
+                    raise ValueError('Each mode connection needs its prescribed single transaction.')
+                begins[phase] += 1
+                active = True
+            elif statement == ('commit',):
+                if not active:
+                    raise ValueError('Mode COMMIT is outside its transaction.')
+                commits[phase] += 1
+                active = False
+            elif not active:
+                raise ValueError('A migration mode statement is outside its transaction.')
+        buffer.clear()
+
+    for line in branch(source,mode).splitlines():
+        value = line.strip()
+        if not value or value.startswith('--'):
+            continue
+        if value.startswith('\\'):
+            flush()
+            if value == '\\set to_database :DBNAME':
+                if phase or named:
+                    raise ValueError('The destination is anchored once to its initial database.')
+                named = True
+            elif value in ('\\set QUIET on','\\pset format unaligned','\\pset tuples_only on'):
+                if phase or active:
+                    raise ValueError('Output formatting is fixed before mode transactions.')
+            elif value == '\\connect :from_database':
+                if phase != 0 or active or not named or (mode == 'chat' and commits[0] != 1):
+                    raise ValueError('The mode source follows its read-only provenance preflight.')
+                phase = 1
+            elif value == '\\connect :to_database':
+                if phase != 1 or active or commits[1] != 1:
+                    raise ValueError('The mode destination follows the committed source snapshot.')
+                phase = 2
+            else:
+                match = COPY.fullmatch(value)
+                if match is None:
+                    raise ValueError('Optional modes use only fixed connections, output settings and binary copy files.')
+                direction,name = match.groups()
+                expected = 1 if direction.upper() == 'TO' else 2
+                if phase != expected or not active or name in copies[phase]:
+                    raise ValueError('A mode copy must occur once in its corresponding transaction.')
+                copies[phase].add(name)
+        elif '\\gset' in value:
+            if not value.endswith('\\gset') or value.count('\\gset') != 1:
+                raise ValueError('Mode variables are captured only from their query result.')
+            buffer.append(value[:-len('\\gset')]+';')
+            flush()
+        else:
+            buffer.append(line)
+    flush()
+    required = {'progress.copy'} if mode == 'check' else REQUIRED
+    if (phase != 2 or active or begins[1] != 1 or commits[1] != 1 or begins[2] != 1 or commits[2] != 1
+            or copies[1] != required or copies[2] != required):
+        raise ValueError('Each optional mode needs a committed source snapshot and one atomic target write.')
+    return copies[1]

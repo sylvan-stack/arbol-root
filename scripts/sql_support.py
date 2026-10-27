@@ -19,6 +19,8 @@ sys.path.insert(0, str(ROOT / 'contract/conformance'))
 from rct_conformance.postgres import PORT, ROLE, Server, programs  # noqa: E402
 
 from arbol_root.model import build_record, identifier, object_file  # noqa: E402
+from scripts.migration_modes import FILE as MODES_FILE  # noqa: E402
+from scripts.migration_modes import read_modes  # noqa: E402
 
 
 def regular(path: Path) -> Path:
@@ -34,6 +36,7 @@ class BuildInput:
     number: str
     contract: int
     older: str | None
+    modes: tuple[str, ...] = ()
 
     @classmethod
     def read(cls, folder: Path) -> BuildInput:
@@ -47,7 +50,14 @@ class BuildInput:
             raise ValueError('The copied lineage must name a different valid Root.')
         for name in ['chat-tables.sql', 'root-tables.sql', *(['migrate.sql'] if older is not None else [])]:
             regular(folder / 'layout' / name)
-        return cls(folder, record['root'], record['build'], layout['rootContract'], older)
+        modes: tuple[str, ...] = ()
+        if 'migrationModes' in layout:
+            capability = read_modes(folder / 'layout' / MODES_FILE)
+            if older is None or capability != layout['migrationModes']:
+                raise ValueError('The advertised migration modes do not match copied capabilities/lineage.')
+            assert capability is not None
+            modes = tuple(capability['modes'])
+        return cls(folder, record['root'], record['build'], layout['rootContract'], older, modes)
 
     def file(self, name: str) -> Path:
         return regular(self.folder / 'layout' / name)
