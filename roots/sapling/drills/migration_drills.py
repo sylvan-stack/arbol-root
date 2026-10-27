@@ -13,6 +13,7 @@ import uuid
 from collections.abc import Callable
 from contextlib import closing
 from datetime import UTC, datetime
+from pathlib import Path
 from types import FrameType
 from typing import Any
 
@@ -30,7 +31,7 @@ from migration_support import (
 from sapling_messages import judge, usage_available
 from sapling_outage import stopped
 from stopping_support import frozen
-from trunk_drill_support import verify_process
+from trunk_drill_support import processes, verify_process
 
 
 def qualified(places: Places, phase: str) -> dict[str, Any]:
@@ -241,6 +242,67 @@ def target_preserved(before: dict[str, Any], after: dict[str, Any]) -> bool:
                for name,table in before['tables'].items())
 
 
+def judge_history(records: list[dict[str, Any]], expected: list[dict[str, Any]]) -> None:
+    runs = [row for row in records if row.get('arguments',[])[:1] == ['run']]
+    require(len(runs) == 1 and (runs[0].get('request') or {}).get('history') == expected,
+            'The private Driver run did not receive exactly the migrated whole-message history.')
+
+
+def reconcile_continuation(frame: MigrationFrame, original: Path) -> dict[str, Any]:
+    """Requalify only the known completed first check, never start another Exchange."""
+    root = frame.places.evidence/'trunk-drills/jensen-continuation'
+    original = original.resolve()
+    require(original.parent == root.resolve() and str(uuid.UUID(original.name)) == original.name,
+            'Reconciliation requires one original private continuation attempt.')
+    error = document((original/'failure.json').read_bytes())
+    require(error == {'error':'The private Driver did not receive exactly the migrated whole-message history.',
+                      'kind':'DrillError'}, 'This is not the known discovery-record assertion failure.')
+    files = list(original.glob('*-snapshot.json'))
+    require(len(files) == 1, 'The original continuation has ambiguous Exchange evidence.')
+    saved = document(files[0].read_bytes())
+    accepted,data = saved['accepted'],saved['persisted']
+    chat = original_chat(frame.places)
+    require(accepted.get('root') == 'jensen' and accepted.get('chat') == chat
+            and data['exchange']['id'] == accepted['exchange'] and data['exchange']['state'] == 'completed'
+            and data['exchange']['number'] == accepted['number'], 'The saved continuation was not completed in Jensen.')
+    before = document((original/'jensen-before-continuation.json').read_bytes())
+    history,number,_word = chat_history(before,chat)
+    require(accepted['number'] == number, 'The saved continuation has a different next number.')
+    judge_history(saved['standin'],history)
+    source_before = document((original/'before.json').read_bytes())
+    source_after = document((original/'after.json').read_bytes())
+    require(source_before == source_after == frame.before, 'The source rows changed since the original continuation.')
+    target = Snapshot(Inspector(frame.places,root='jensen'),provenance=True).read()
+    require(target_preserved(before,target), 'A saved old Jensen row is no longer present exactly.')
+    for name in TABLES:
+        extra = set(target['tables'][name]['encodedRows'])-set(before['tables'][name]['encodedRows'])
+        require(name != 'chats' or not extra, 'An unrelated chat was added after the saved continuation.')
+        column = 'id' if name == 'exchanges' else 'exchange_id'
+        require(all(document(row)[column] == accepted['exchange'] for row in extra),
+                'Unrelated Jensen changes prevent requalifying this exact saved continuation.')
+    require(target['tables']['migrated_chats']['encodedRows'] == before['tables']['migrated_chats']['encodedRows'],
+            'Migration provenance changed since the saved continuation.')
+    rows = {row['id']:row for row in target['tables']['exchanges']['rows']}
+    require(rows.get(accepted['exchange']) == data['exchange']
+            and not (frame.places.roots/'jensen/exchanges'/accepted['exchange']).exists(),
+            'The completed saved continuation differs from the actual Jensen row/folder.')
+    for name in ['messages','runs']:
+        actual = [row for row in target['tables'][name]['rows'] if row['exchange_id'] == accepted['exchange']]
+        require(actual == data[name], 'The saved '+name+' no longer match the completed continuation.')
+    require(not any(row['exchange_id'] == accepted['exchange'] for row in target['tables']['tool_calls']['rows']),
+            'The message-only stand-in continuation acquired an unexpected tool call.')
+    current = processes()
+    for row in saved['knownProcesses']:
+        identity = {**row,'started':datetime.fromisoformat(row['started'])}
+        require(current.get(row['pid']) != identity, 'An original continuation process still survives.')
+    new_json(frame.evidence/'reconciled.json',{'original':str(original),'accepted':accepted,'historyItems':len(history),
+                                           'driverRunHistoryExact':True,'sourceRowsUnchanged':True,
+                                           'oldJensenRowsPreserved':True,'vendorRequests':0})
+    return {'root':'jensen','chat':chat,'exchange':accepted['exchange'],'number':number,
+            'reconciledOriginal':str(original),'oldJensenRowsPreserved':True,'sourceFingerprintUnchanged':True,
+            'verdict':{'historyItems':len(history),'receivedHistoryExact':True},'realMessages':0}
+
+
 def continuation(frame: MigrationFrame, *, real: bool = False) -> dict[str, Any]:
     qualified(frame.places,'ready')
     if real:
@@ -285,8 +347,7 @@ def continuation(frame: MigrationFrame, *, real: bool = False) -> dict[str, Any]
         else:
             assert exchange.fixture is not None
             records = exchange.fixture.records()
-            require(len(records) == 1 and records[0]['request'].get('history') == history,
-                    'The private Driver did not receive exactly the migrated whole-message history.')
+            judge_history(records,history)
             new_json(frame.evidence/'received-history.json',records)
             verdict = {'historyItems':len(history),'receivedHistoryExact':True}
     except BaseException:
@@ -316,14 +377,14 @@ OPERATIONS: dict[str, Callable[[MigrationFrame],dict[str,Any]]] = {'failure':fai
               'real-continuation':lambda frame:continuation(frame,real=True)}
 
 
-def run_phase(name: str) -> dict[str, Any]:
+def run_phase(name: str, *, reconcile: Path | None = None) -> dict[str, Any]:
     places = Places.owner()
     root = places.evidence/'jensen-drills'/name
     require(not list(root.glob('*/qualified.json')), 'This Jensen phase is already qualified; inspect its receipt.')
     frame = MigrationFrame('jensen-'+name,current='jensen' if name in ('continuation','real-continuation') else 'sapling')
     try:
         try:
-            details = OPERATIONS[name](frame)
+            details = reconcile_continuation(frame,reconcile) if reconcile is not None else OPERATIONS[name](frame)
         except BaseException as error:
             new_json(frame.evidence/'failure.json',{'error':str(error),'kind':type(error).__name__})
             raise
@@ -341,9 +402,10 @@ def entry(name: str) -> int:
     parser.add_argument('--run',action='store_true')
     if name == 'continuation':
         parser.add_argument('--send',action='store_true')
+        parser.add_argument('--reconcile',type=Path)
     args = parser.parse_args()
     if getattr(args,'send',False):
-        require(args.run, '--send also requires --run.')
+        require(args.run and getattr(args,'reconcile',None) is None, '--send requires --run without --reconcile.')
         name = 'real-continuation'
     previous = {n:signal.getsignal(n) for n in (signal.SIGINT,signal.SIGTERM)}
     def interrupted(number: int, frame: FrameType | None) -> None:
@@ -351,7 +413,7 @@ def entry(name: str) -> int:
     try:
         for number in previous:
             signal.signal(number,interrupted)
-        print(json.dumps(run_phase(name) if args.run else {'preflightOnly':True,'phase':name,'realMessages':0}))
+        print(json.dumps(run_phase(name,reconcile=getattr(args,'reconcile',None)) if args.run else {'preflightOnly':True,'phase':name,'realMessages':0}))
         return 0
     except (Exception,KeyboardInterrupt) as error:
         print(json.dumps({'passed':False,'error':str(error)}))

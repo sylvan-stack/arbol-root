@@ -337,6 +337,19 @@ class ContinuationJudgment(unittest.TestCase):
         with self.assertRaises(DrillError):
             chat_history(value,'chat')
 
+    def test_history_judgment_selects_the_single_run_among_discovery_records(self) -> None:
+        """sapling.migration-driver-records"""
+        from migration_drills import judge_history
+        history = [{'type':'message','role':'user','text':'saved 🌲'}]
+        records: list[dict[str,Any]] = [{'arguments':['info'],'request':None},{'arguments':['subscriptions','families'],'request':None},
+                   {'arguments':['subscriptions','list'],'request':None},
+                   {'arguments':['run','--request','private'],'request':{'history':history}}]
+        judge_history(records,history)
+        for wrong in [records[:-1],records+[records[-1]],
+                      [*records[:-1],{'arguments':['run'],'request':{'history':[]}}]]:
+            with self.assertRaises(DrillError):
+                judge_history(wrong,history)
+
     def test_usage_refusal_prevents_reservation_and_ambiguous_acceptance_is_counted_once(self) -> None:
         """sapling.migration-real-budget"""
         from migration_drills import continuation
