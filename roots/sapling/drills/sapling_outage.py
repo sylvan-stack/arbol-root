@@ -75,6 +75,8 @@ class Installed:
         self.domain = f'gui/{os.getuid()}'
         self.service = self.domain+'/'+self.label
         folder = places.home/'Library/Application Support/Arbol/database'
+        self.data = folder/'data'
+        self.pg_ctl = '/opt/homebrew/opt/postgresql@17/bin/pg_ctl'
         require(value.get('Label') == self.label and value.get('WorkingDirectory') == str(folder)
                 and value.get('ProgramArguments') == ['/opt/homebrew/opt/postgresql@17/bin/postgres',
                                                        '-D',str(folder/'data')],
@@ -94,8 +96,22 @@ class Installed:
             return False
 
     def stop(self) -> None:
+        pid_file = self.data/'postmaster.pid'
+        identity = pid_file.read_text().splitlines()[:3]
+        require(len(identity) == 3 and identity[0].isdigit() and int(identity[0]) > 0
+                and Path(identity[1]).resolve() == self.data.resolve() and identity[2].isdigit(),
+                'The database PID file does not identify the expected data directory/server.')
         require(self.command('bootout',self.service).returncode == 0, 'The database launch agent could not be stopped.')
-        wait_for(lambda:True if not self.healthy() else None,seconds=20,interval=0.2)
+        if pid_file.exists():
+            require(pid_file.read_text().splitlines()[:3] == identity,
+                    'The database process identity changed after bootout; fast shutdown refuses.')
+            result = subprocess.run([self.pg_ctl,'--pgdata',str(self.data),'--mode','fast','--wait',
+                                     '--timeout','20','stop'],stdin=subprocess.DEVNULL,capture_output=True,
+                                    text=True,timeout=25,check=False,
+                                    env={'HOME':str(self.places.home),'PATH':'/usr/bin:/bin','LANG':'C'})
+            require(result.returncode == 0 or not pid_file.exists(),
+                    'The database did not complete its fast shutdown; restore the saved service.')
+        wait_for(lambda:True if not pid_file.exists() and not self.healthy() else None,seconds=20,interval=0.2)
 
     def restore(self) -> None:
         require(hashlib.sha256(self.plist.read_bytes()).hexdigest() == self.digest,
