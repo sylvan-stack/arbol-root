@@ -38,6 +38,17 @@ def resume(frame: Frame, exchange: Exchange) -> dict[str, Any]:
     return data
 
 
+def judge_real_interrupted(data: dict[str, Any], events: list[dict[str, Any]]) -> None:
+    """RCT-3 preserves whole top-level blocks; a text_delta deliberately makes no row."""
+    expected = [(line['n'],line['event']['text']) for line in events
+                if line.get('event',{}).get('type') == 'text' and not line['event'].get('parentCallId')]
+    actual = [(row['position'],row['text']) for row in data['messages'] if row['role'] == 'assistant']
+    require(actual == expected, 'The interrupted real answer differs from the whole blocks RCT-3 keeps.')
+    require(data['exchange']['state'] == 'interrupted' and data['runs']
+            and all(row['outcome'] == 'interrupted' for row in data['runs']),
+            'The real run was not recovered interrupted.')
+
+
 def killed(frame: Frame, *, real: bool = False) -> dict[str, Any]:
     exchange = frame.exchange(None if real else 'R13 interrupted')
     budget = Budget(frame.places.evidence)
@@ -63,10 +74,7 @@ def killed(frame: Frame, *, real: bool = False) -> dict[str, Any]:
         require('end' not in exchange.record(), 'Killing the Trunk forged an end.')
         data = exchange.settle('interrupted')
         if real:
-            require(any(row['role'] == 'assistant' and row.get('text') for row in data['messages']),
-                    'The interrupted real answer was lost.')
-            require(data['runs'] and all(row['outcome'] == 'interrupted' for row in data['runs']),
-                    'The real run was not recovered interrupted.')
+            judge_real_interrupted(data,arrived)
         else:
             interrupted_rows(data)
             calls = tool_rows(exchange)

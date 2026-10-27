@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'roots/sapling/drills'))
 from drill_support import DrillError  # noqa: E402
 from trunk_drill_support import StandinHome, existing_rows_unchanged, processes, verify_process  # noqa: E402
-from trunk_drills import run_drill  # noqa: E402
+from trunk_drills import judge_real_interrupted, run_drill  # noqa: E402
 
 
 class PrivateDriver(unittest.TestCase):
@@ -72,6 +72,21 @@ class PrivateDriver(unittest.TestCase):
 
 
 class ProcessAndRows(unittest.TestCase):
+    def test_real_recovery_keeps_every_whole_block_but_never_saves_fragments_as_messages(self) -> None:
+        """sapling.drill-real-row-mapping"""
+        events = [{'n':1,'event':{'type':'text_delta','text':'incomplete'}},
+                  {'n':2,'event':{'type':'text','text':'whole'}},
+                  {'n':3,'event':{'type':'text','text':'child','parentCallId':'tool'}}]
+        data = {'exchange':{'state':'interrupted'},'messages':[{'position':2,'role':'assistant','text':'whole'}],
+                'runs':[{'outcome':'interrupted'}]}
+        judge_real_interrupted(data,events)
+        with self.assertRaises(DrillError):
+            judge_real_interrupted({**data,'messages':[]},events)
+        with self.assertRaises(DrillError):
+            judge_real_interrupted({**data,'messages':[{'position':1,'role':'assistant','text':'incomplete'},
+                                                       *data['messages']]},events)
+        judge_real_interrupted({**data,'messages':[]},events[:1])
+
     def test_live_private_process_identity_is_checked_before_a_signal(self) -> None:
         """sapling.drill-process-identity"""
         child = subprocess.Popen(['/bin/sleep','30'],start_new_session=True)
