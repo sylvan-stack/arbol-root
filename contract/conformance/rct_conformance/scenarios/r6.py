@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
 from typing import Any
 
 from ..home import TIME_SCALE, ScenarioHome
 from ..judge import check, equal, wait_until
-from .r1 import END_SECONDS, MESSAGE, accepted
+from .r1 import END_SECONDS
 
 
 def observe(home: ScenarioHome, exchange: str, waiting: str, seconds: float) -> dict[str, Any]:
@@ -35,20 +34,32 @@ def observe(home: ScenarioHome, exchange: str, waiting: str, seconds: float) -> 
     return initial
 
 
+# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r6.py::run
+# def run(home: ScenarioHome) -> None:
+#     home.part()
+#     start = home.start(MESSAGE)
+#     accepted(start)
+#     exchange = start.exchange
+#     wait_until(lambda: home.events(exchange), END_SECONDS, 'the first Driver event')
+#     driver = observe(home, exchange, 'driver', 50 / TIME_SCALE)
+#     tool = observe(home, exchange, 'tool', 50 / TIME_SCALE)
+#     answer = observe(home, exchange, 'answer', 60 / TIME_SCALE)
+#     check(datetime.fromisoformat(driver['since']) < datetime.fromisoformat(tool['since']) <
+#           datetime.fromisoformat(answer['since']), 'since did not move with each change of wait.')
+#     opened = next(line['event'] for line in home.events(exchange) if line.get('event', {}).get('type') == 'ask_opened')
+#     home.control(exchange, {'type': 'answer', 'askId': opened['askId'],
+#                             'answer': {'type': 'answers', 'answers': {'branch': ['main']}}})
+#     wait_until(lambda: exchange not in home.folders(hidden=True), END_SECONDS, 'the healthy Exchange to complete')
+#     equal(home.rows(f"SELECT state FROM exchanges WHERE id = '{exchange}'"), [{'state': 'completed'}],
+#           'The Exchange survived its long intentional waits')
+# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r6.py::run
 def run(home: ScenarioHome) -> None:
-    home.part()
-    start = home.start(MESSAGE)
-    accepted(start)
-    exchange = start.exchange
-    wait_until(lambda: home.events(exchange), END_SECONDS, 'the first Driver event')
-    driver = observe(home, exchange, 'driver', 50 / TIME_SCALE)
-    tool = observe(home, exchange, 'tool', 50 / TIME_SCALE)
-    answer = observe(home, exchange, 'answer', 60 / TIME_SCALE)
-    check(datetime.fromisoformat(driver['since']) < datetime.fromisoformat(tool['since']) <
-          datetime.fromisoformat(answer['since']), 'since did not move with each change of wait.')
-    opened = next(line['event'] for line in home.events(exchange) if line.get('event', {}).get('type') == 'ask_opened')
-    home.control(exchange, {'type': 'answer', 'askId': opened['askId'],
-                            'answer': {'type': 'answers', 'answers': {'branch': ['main']}}})
-    wait_until(lambda: exchange not in home.folders(hidden=True), END_SECONDS, 'the healthy Exchange to complete')
-    equal(home.rows(f"SELECT state FROM exchanges WHERE id = '{exchange}'"), [{'state': 'completed'}],
-          'The Exchange survived its long intentional waits')
+    raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
+
+# Archived complete imports; restore needed names in their original scope, not at this file tail.
+# TEST-TIER-IMPORTS-BEGIN contract/conformance/rct_conformance/scenarios/r6.py:6
+# from datetime import datetime
+# TEST-TIER-IMPORTS-END contract/conformance/rct_conformance/scenarios/r6.py:6
+# TEST-TIER-IMPORTS-BEGIN contract/conformance/rct_conformance/scenarios/r6.py:11
+# from .r1 import END_SECONDS, MESSAGE, accepted
+# TEST-TIER-IMPORTS-END contract/conformance/rct_conformance/scenarios/r6.py:11

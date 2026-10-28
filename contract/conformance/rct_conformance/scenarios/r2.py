@@ -12,10 +12,14 @@ from ..judge import check, equal, parse_line, wait_until
 from .r1 import END_SECONDS, MESSAGE, accepted
 
 
+# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r2.py::run
+# def run(home: ScenarioHome) -> None:
+#     foreground(home)
+#     unread(home)
+#     interrupt(home)
+# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r2.py::run
 def run(home: ScenarioHome) -> None:
-    foreground(home)
-    unread(home)
-    interrupt(home)
+    raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
 
 def foreground(home: ScenarioHome) -> None:

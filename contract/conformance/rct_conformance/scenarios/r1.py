@@ -11,13 +11,12 @@ Covers RCT-0.4, 0.6, 0.14, 1.1, 1.2, 1.5, 2.1, 2.4, 2.9, 2.20, 3.1, 3.2 and 3.3.
 
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime
 from typing import Any
 
-from ..home import ROOT, ROUTE, ScenarioHome, Started
-from ..judge import check, equal, wait_until
+from ..home import ROOT, ScenarioHome, Started
+from ..judge import check, equal
 
 MESSAGE = "What does build.sh do?"
 CODE_NAME = re.compile(r"[a-z][a-z0-9]{0,31}")
@@ -44,54 +43,58 @@ def accepted(started: Started) -> dict[str, Any]:
     return answer
 
 
+# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r1.py::run
+# def run(home: ScenarioHome) -> None:
+#     home.part()
+#     started = home.start(MESSAGE)
+#     answer = accepted(started)
+#     exchange, chat = started.exchange, answer["chat"]
+#     equal(answer["number"], 1, "The number of the chat's first Exchange")
+#
+#     # When the line came, the folder, the chat, the open Exchange and the message at position 0 were there.
+#     check(exchange in home.folders(), "The Exchange has no folder once it is accepted.", exchange, home.folders())
+#     follow = home.follow(exchange)
+#     try:
+#         record = home.record(exchange)
+#         check(isinstance(record, dict) and "acceptedAt" in record, "The record has no acceptedAt once accepted.",
+#               "acceptedAt", record)
+#         equal({name: record.get(name) for name in ("rootContract", "root", "exchange", "chat", "trunk", "build",
+#                                                     "route", "workingFolder")},
+#               {"rootContract": home.root_contract, "root": ROOT, "exchange": exchange, "chat": chat,
+#                "trunk": answer["trunk"], "build": answer["build"], "route": ROUTE,
+#                "workingFolder": str(home.work.resolve())}, "The record of the accepted Exchange")
+#         equal(record["process"]["pid"], started.process.pid, "The record's process")
+#         equal(home.rows(f"SELECT id::text FROM chats WHERE id = '{chat}'"), [{"id": chat}], "The chat")
+#         equal(home.rows(f"SELECT number, state, trunk, build, route FROM exchanges WHERE id = '{exchange}'"),
+#               [{"number": 1, "state": "open", "trunk": answer["trunk"], "build": answer["build"], "route": ROUTE}],
+#               "The open Exchange")
+#         equal(home.rows(f"SELECT position, role, text FROM messages WHERE exchange_id = '{exchange}'"),
+#               [{"position": 0, "role": "user", "text": MESSAGE}], "The message at position 0")
+#         check(started.process.poll() is None, "The Trunk did not live on after the suite closed its end of the pipe.")
+#
+#         wait_until(lambda: exchange not in home.folders(hidden=True), END_SECONDS, "the Exchange's folder to go")
+#         received = home.received()
+#         equal(len(received), 1, "The starts of the stand-in")
+#         check(received[0]["launcher"] == "arbol-claude-driver" and received[0]["arguments"][:1] == ["run"]
+#               and "--control" in received[0]["arguments"],
+#               "The stand-in was not started through its launcher name as run with --control.",
+#               ["arbol-claude-driver", "run", "--control"], [received[0]["launcher"], received[0]["arguments"]])
+#         lines = follow.lines()
+#     finally:
+#         follow.close()
+#
+#     # n from 1 without gaps, every event as the stand-in wrote it, the end last.
+#     equal([line.get("n") if isinstance(line, dict) else line for line in lines], list(range(1, len(lines) + 1)),
+#           "The n of the lines of events.jsonl")
+#     written = [json.loads(event) for event in received[0]["events"]]
+#     equal([line.get("event") for line in lines[:-1]], written, "The events in events.jsonl")
+#     end = lines[-1].get("end")
+#     check(isinstance(end, dict) and end.get("state") == "completed" and "error" not in end,
+#           "The last line of events.jsonl is not a completed end.", "completed", lines[-1])
+#     judge_rows(home, exchange, written)
+# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r1.py::run
 def run(home: ScenarioHome) -> None:
-    home.part()
-    started = home.start(MESSAGE)
-    answer = accepted(started)
-    exchange, chat = started.exchange, answer["chat"]
-    equal(answer["number"], 1, "The number of the chat's first Exchange")
-
-    # When the line came, the folder, the chat, the open Exchange and the message at position 0 were there.
-    check(exchange in home.folders(), "The Exchange has no folder once it is accepted.", exchange, home.folders())
-    follow = home.follow(exchange)
-    try:
-        record = home.record(exchange)
-        check(isinstance(record, dict) and "acceptedAt" in record, "The record has no acceptedAt once accepted.",
-              "acceptedAt", record)
-        equal({name: record.get(name) for name in ("rootContract", "root", "exchange", "chat", "trunk", "build",
-                                                    "route", "workingFolder")},
-              {"rootContract": home.root_contract, "root": ROOT, "exchange": exchange, "chat": chat,
-               "trunk": answer["trunk"], "build": answer["build"], "route": ROUTE,
-               "workingFolder": str(home.work.resolve())}, "The record of the accepted Exchange")
-        equal(record["process"]["pid"], started.process.pid, "The record's process")
-        equal(home.rows(f"SELECT id::text FROM chats WHERE id = '{chat}'"), [{"id": chat}], "The chat")
-        equal(home.rows(f"SELECT number, state, trunk, build, route FROM exchanges WHERE id = '{exchange}'"),
-              [{"number": 1, "state": "open", "trunk": answer["trunk"], "build": answer["build"], "route": ROUTE}],
-              "The open Exchange")
-        equal(home.rows(f"SELECT position, role, text FROM messages WHERE exchange_id = '{exchange}'"),
-              [{"position": 0, "role": "user", "text": MESSAGE}], "The message at position 0")
-        check(started.process.poll() is None, "The Trunk did not live on after the suite closed its end of the pipe.")
-
-        wait_until(lambda: exchange not in home.folders(hidden=True), END_SECONDS, "the Exchange's folder to go")
-        received = home.received()
-        equal(len(received), 1, "The starts of the stand-in")
-        check(received[0]["launcher"] == "arbol-claude-driver" and received[0]["arguments"][:1] == ["run"]
-              and "--control" in received[0]["arguments"],
-              "The stand-in was not started through its launcher name as run with --control.",
-              ["arbol-claude-driver", "run", "--control"], [received[0]["launcher"], received[0]["arguments"]])
-        lines = follow.lines()
-    finally:
-        follow.close()
-
-    # n from 1 without gaps, every event as the stand-in wrote it, the end last.
-    equal([line.get("n") if isinstance(line, dict) else line for line in lines], list(range(1, len(lines) + 1)),
-          "The n of the lines of events.jsonl")
-    written = [json.loads(event) for event in received[0]["events"]]
-    equal([line.get("event") for line in lines[:-1]], written, "The events in events.jsonl")
-    end = lines[-1].get("end")
-    check(isinstance(end, dict) and end.get("state") == "completed" and "error" not in end,
-          "The last line of events.jsonl is not a completed end.", "completed", lines[-1])
-    judge_rows(home, exchange, written)
+    raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
 
 def moment(value: str) -> datetime:
@@ -128,3 +131,14 @@ def judge_rows(home: ScenarioHome, exchange: str, events: list[dict[str, Any]]) 
           finished["at"], runs[0]["ended_at"])
     rows = home.rows(f"SELECT state, error, ended_at IS NOT NULL AS ended FROM exchanges WHERE id = '{exchange}'")
     equal(rows, [{"state": "completed", "error": None, "ended": True}], "The Exchange at its end")
+
+# Archived complete imports; restore needed names in their original scope, not at this file tail.
+# TEST-TIER-IMPORTS-BEGIN contract/conformance/rct_conformance/scenarios/r1.py:14
+# import json
+# TEST-TIER-IMPORTS-END contract/conformance/rct_conformance/scenarios/r1.py:14
+# TEST-TIER-IMPORTS-BEGIN contract/conformance/rct_conformance/scenarios/r1.py:19
+# from ..home import ROOT, ROUTE, ScenarioHome, Started
+# TEST-TIER-IMPORTS-END contract/conformance/rct_conformance/scenarios/r1.py:19
+# TEST-TIER-IMPORTS-BEGIN contract/conformance/rct_conformance/scenarios/r1.py:20
+# from ..judge import check, equal, wait_until
+# TEST-TIER-IMPORTS-END contract/conformance/rct_conformance/scenarios/r1.py:20

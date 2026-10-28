@@ -10,7 +10,6 @@ Covers RCT-0.3, 0.5, 2.2, 2.13 and 2.17.
 
 from __future__ import annotations
 
-import json
 import os
 import select
 import subprocess
@@ -19,7 +18,7 @@ import uuid
 from pathlib import Path
 from typing import IO, Any
 
-from ..home import ROOT, ROUTE, ScenarioHome, write_json
+from ..home import ROOT, ROUTE, ScenarioHome
 from ..judge import check, equal, parse_line, wait_until
 from .r1 import END_SECONDS, accepted
 
@@ -30,23 +29,27 @@ UNKNOWN_ROOT = "unknown"
 VERSION_NO_BUILD_LISTS = 1000  # added to the version under test
 
 
+# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r3.py::run
+# def run(home: ScenarioHome) -> None:
+#     refused(home, "option", "invalid_input", options=("--bogus",))
+#     refused(home, "no message", "invalid_input", message=None)
+#     refused(home, "root", "invalid_input", root="../rct")
+#     refused(home, "relative folder", "invalid_input", options=("--cwd", "."))
+#     refused(home, "missing folder", "invalid_input", request={"workingFolder": str(home.home / "missing")})
+#     refused(home, "replaces", "invalid_input", request={"replaces": str(uuid.uuid4())})
+#     refused(home, "unknown root", "unknown_root", root=UNKNOWN_ROOT)
+#     record_file = home.root_folder / "root.json"
+#     record = json.loads(record_file.read_text(encoding="utf-8"))
+#     write_json(record_file, {**record, "rootContract": home.root_contract + VERSION_NO_BUILD_LISTS})
+#     try:
+#         refused(home, "version", "contract_mismatch")
+#     finally:
+#         write_json(record_file, record)
+#     busy_chat(home)
+#     refused(home, "database away", "database_unavailable", database_away=True)
+# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r3.py::run
 def run(home: ScenarioHome) -> None:
-    refused(home, "option", "invalid_input", options=("--bogus",))
-    refused(home, "no message", "invalid_input", message=None)
-    refused(home, "root", "invalid_input", root="../rct")
-    refused(home, "relative folder", "invalid_input", options=("--cwd", "."))
-    refused(home, "missing folder", "invalid_input", request={"workingFolder": str(home.home / "missing")})
-    refused(home, "replaces", "invalid_input", request={"replaces": str(uuid.uuid4())})
-    refused(home, "unknown root", "unknown_root", root=UNKNOWN_ROOT)
-    record_file = home.root_folder / "root.json"
-    record = json.loads(record_file.read_text(encoding="utf-8"))
-    write_json(record_file, {**record, "rootContract": home.root_contract + VERSION_NO_BUILD_LISTS})
-    try:
-        refused(home, "version", "contract_mismatch")
-    finally:
-        write_json(record_file, record)
-    busy_chat(home)
-    refused(home, "database away", "database_unavailable", database_away=True)
+    raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
 
 def busy_chat(home: ScenarioHome) -> None:
@@ -176,3 +179,11 @@ def group_alive(pgid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+# Archived complete imports; restore needed names in their original scope, not at this file tail.
+# TEST-TIER-IMPORTS-BEGIN contract/conformance/rct_conformance/scenarios/r3.py:13
+# import json
+# TEST-TIER-IMPORTS-END contract/conformance/rct_conformance/scenarios/r3.py:13
+# TEST-TIER-IMPORTS-BEGIN contract/conformance/rct_conformance/scenarios/r3.py:22
+# from ..home import ROOT, ROUTE, ScenarioHome, write_json
+# TEST-TIER-IMPORTS-END contract/conformance/rct_conformance/scenarios/r3.py:22
