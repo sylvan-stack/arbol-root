@@ -26,21 +26,25 @@ INTERRUPTED = {"ok": False, "interrupted": True}
 WRITER_SECONDS = 15.0  # RCT-1.8: how long a writer waits for the folder to be in place
 
 
+# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r8.py::run
+# def run(home: ScenarioHome) -> None:
+#     stopped(home, "text", lambda events: len([e for e in events if e.get("type") == "text_delta"]) >= 2)
+#     calls = stopped(home, "tool", lambda events: any(e.get("type") == "tool_started" for e in events))
+#     equal([{key: call[key] for key in ("name", "ok", "interrupted")} for call in calls],
+#           [{"name": "shell", **INTERRUPTED}], "tool: the shell call that was running")
+#     asks: list[Any] = []
+#
+#     def asked(events: list[dict[str, Any]]) -> bool:
+#         asks[:] = [event["ask"] for event in events if event.get("type") == "ask_opened"]
+#         return bool(asks)
+#
+#     calls = stopped(home, "ask", asked)
+#     equal(calls, [{"name": "ask_user", **INTERRUPTED, "ask": asks[0], "answer": None}],
+#           "ask: the question that was open")
+#     early(home)
+# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r8.py::run
 def run(home: ScenarioHome) -> None:
-    stopped(home, "text", lambda events: len([e for e in events if e.get("type") == "text_delta"]) >= 2)
-    calls = stopped(home, "tool", lambda events: any(e.get("type") == "tool_started" for e in events))
-    equal([{key: call[key] for key in ("name", "ok", "interrupted")} for call in calls],
-          [{"name": "shell", **INTERRUPTED}], "tool: the shell call that was running")
-    asks: list[Any] = []
-
-    def asked(events: list[dict[str, Any]]) -> bool:
-        asks[:] = [event["ask"] for event in events if event.get("type") == "ask_opened"]
-        return bool(asks)
-
-    calls = stopped(home, "ask", asked)
-    equal(calls, [{"name": "ask_user", **INTERRUPTED, "ask": asks[0], "answer": None}],
-          "ask: the question that was open")
-    early(home)
+    raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
 
 def early(home: ScenarioHome) -> None:

@@ -10,10 +10,14 @@ from .r1 import END_SECONDS, accepted
 from .r13 import settled, tables
 
 
+# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r12.py::run
+# def run(home: ScenarioHome) -> None:
+#     during_work(home)
+#     after_acceptance(home)
+#     through_the_end(home)
+# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r12.py::run
 def run(home: ScenarioHome) -> None:
-    during_work(home)
-    after_acceptance(home)
-    through_the_end(home)
+    raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
 
 def during_work(home: ScenarioHome) -> None:

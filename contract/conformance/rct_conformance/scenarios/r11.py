@@ -12,9 +12,13 @@ from .r1 import END_SECONDS, accepted
 from .r13 import settled, tables
 
 
+# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r11.py::run
+# def run(home: ScenarioHome) -> None:
+#     driver_failures(home)
+#     folder_failure(home)
+# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r11.py::run
 def run(home: ScenarioHome) -> None:
-    driver_failures(home)
-    folder_failure(home)
+    raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
 
 def driver_failures(home: ScenarioHome) -> None:
