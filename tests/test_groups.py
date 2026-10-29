@@ -56,3 +56,20 @@ class NativeForce(unittest.TestCase):
 
 
 # Archived complete imports; restore needed names in their original scope, not at this file tail.
+
+# LOW TIER — DO NOT ENABLE OR RECREATE
+# Historical examples only. Read before adding related tests; never execute.
+# LOW-TIER-BEGIN: tests/test_groups.py::GroupIdentity.test_os_clock_is_uptime_raw_on_this_mac
+# Reason: Mocks the clock and copies the wrapper exact clock-selection expression; it does not establish awake-time semantics.
+# Source: arbol-root@6e90ef97197cad6753af59c46d4b4be5571b2025:tests/test_groups.py
+# Retained evidence at review: Clock-jump/deadline and process ownership/termination cases remain; platform semantics are not inferred from this mock.
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_os_clock_is_uptime_raw_on_this_mac(self) -> None:
+#         """root.stop-awake-clock"""
+#         import time
+#         with mock.patch('arbol_root.clock.time.clock_gettime', return_value=123.5) as read:
+#             self.assertEqual(awake(), 123.5)
+#         read.assert_called_once_with(getattr(time,'CLOCK_UPTIME_RAW',time.CLOCK_MONOTONIC))
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END

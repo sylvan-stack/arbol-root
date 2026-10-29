@@ -38,3 +38,22 @@ class Boundary(_support.Boundary):
         self.assertEqual((folder / 'control').read_bytes(), b'')
         self.assertEqual(sorted(p.name for p in settings.iterdir()), ['arbol-root.json','arbol.json'])
 # TEST-TIER-END tests/test_management_boundary.py::Boundary.test_every_command_uses_private_root_identity_without_payload_settings_or_retained_manager_files
+
+# LOW TIER — DO NOT ENABLE OR RECREATE
+# Historical examples only. Read before adding related tests; never execute.
+# LOW-TIER-BEGIN: tests/mid/test_mid_management_boundary.py::Boundary.test_a_failed_record_stat_is_a_structured_refusal
+# Reason: Mocked stat-error translation is a straightforward branch with no distinct evidence beyond the retained real filesystem boundary. Case reviewed: root.stop-record-io
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_management_boundary.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_a_failed_record_stat_is_a_structured_refusal(self) -> None:
+#         """root.stop-record-io"""
+#         f = Fixture(self)
+#         value = record(1)
+#         f.put(value)
+#         with mock.patch('arbol_root.stop.os.stat', side_effect=PermissionError('private fixture')):
+#             with self.assertRaises(Refusal) as error:
+#                 read_exchange(f.context, value['exchange'])
+#         self.assertEqual(error.exception.code, 'root_unavailable')
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END

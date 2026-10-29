@@ -52,3 +52,169 @@ class Freeze(_support.Freeze):
                 self.assertEqual([x.args for x in kill.call_args_list],
                                  [(987654,signal.SIGSTOP),(987654,signal.SIGCONT)])
 # TEST-TIER-END tests/test_stopping_drills.py::Freeze.test_failure_during_stop_delivery_still_attempts_to_thaw_the_same_owned_process
+
+# LOW TIER — DO NOT ENABLE OR RECREATE
+# Historical examples only. Read before adding related tests; never execute.
+# LOW-TIER-BEGIN: tests/mid/test_mid_stopping_drills.py::Freeze.test_reused_or_stale_identity_never_gets_a_thaw_signal
+# Reason: Fixture wrappers, recorded-field predicates and ordinary fake-process checks repeat stronger actual process freeze cleanup and top-tier verified-group identity. Case reviewed: sapling.freeze-reused-pid
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_stopping_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_reused_or_stale_identity_never_gets_a_thaw_signal(self) -> None:
+#         """sapling.freeze-reused-pid"""
+#         with tempfile.TemporaryDirectory() as directory:
+#             identity = {'pid':987654,'group':987654,'started':processes()[os.getpid()]['started']}
+#             changed = {**identity,'started':identity['started']+timedelta(days=1)}
+#             with mock.patch('stopping_support.processes',side_effect=[{987654:identity},{987654:changed}]),\
+#                     mock.patch('stopping_support.os.kill') as kill:
+#                 with frozen(identity,Path(directory)/'reused.json'):
+#                     pass
+#                 kill.assert_called_once_with(987654,signal.SIGSTOP)
+#             with mock.patch('stopping_support.processes',return_value={987654:changed}),\
+#                     mock.patch('stopping_support.os.kill') as kill:
+#                 with self.assertRaises(DrillError):
+#                     with frozen(identity,Path(directory)/'stale.json'):
+#                         pass
+#                 kill.assert_not_called()
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_stopping_drills.py::IgnoredChild.test_private_wrapper_child_records_term_and_survives_until_explicit_kill
+# Reason: Fixture wrappers, recorded-field predicates and ordinary fake-process checks repeat stronger actual process freeze cleanup and top-tier verified-group identity. Case reviewed: sapling.force-child
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_stopping_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_private_wrapper_child_records_term_and_survives_until_explicit_kill(self) -> None:
+#         """sapling.force-child"""
+#         with tempfile.TemporaryDirectory(prefix='private stopping wrapper ') as directory:
+#             home = Path(directory)
+#             launcher = home/'trunk'
+#             launcher.write_text('#!/bin/sh\nexit 0\n')
+#             launcher.chmod(0o700)
+#             fixture = StandinHome(launcher,'selftest hold')
+#             process: subprocess.Popen[str] | None = None
+#             pid: int | None = None
+#             try:
+#                 exchange = mock.Mock()
+#                 exchange.fixture = fixture
+#                 ignored_child(exchange)
+#                 request = home/'request.json'
+#                 request.write_text(json.dumps({'input':'hold','runId':'private-stop','model':'standin-model'}))
+#                 process = subprocess.Popen([str(fixture.bin/'arbol-claude-driver'),'run','--request',str(request)],
+#                                            stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
+#                                            text=True,start_new_session=True)
+#                 file = fixture.home/'standin/ignored-child.json'
+#                 value = wait_for(lambda:json.loads(file.read_text()) if file.exists() else None,seconds=10)
+#                 pid = value['pid']
+#                 self.assertEqual(os.getpgid(pid),process.pid)
+#                 self.assertIn(pid,fixture.children())
+#                 os.kill(pid,signal.SIGTERM)
+#                 marker = fixture.home/'standin/ignored-signals.jsonl'
+#                 wait_for(lambda:True if marker.exists() else None,seconds=5)
+#                 self.assertEqual(json.loads(marker.read_text().splitlines()[0])['signal'],signal.SIGTERM)
+#                 time.sleep(0.05)
+#                 self.assertIn(pid,processes())
+#             finally:
+#                 if process is not None:
+#                     os.killpg(process.pid,signal.SIGKILL)
+#                     process.communicate(timeout=5)
+#                 if pid is not None:
+#                     wait_for(lambda:True if pid not in processes() else None,seconds=5)
+#                 fixture.close()
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_stopping_drills.py::IgnoredChild.test_owned_manager_reply_and_kill_reap_only_the_started_private_command
+# Reason: Fixture wrappers, recorded-field predicates and ordinary fake-process checks repeat stronger actual process freeze cleanup and top-tier verified-group identity. Case reviewed: sapling.owned-manager
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_stopping_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_owned_manager_reply_and_kill_reap_only_the_started_private_command(self) -> None:
+#         """sapling.owned-manager"""
+#         with tempfile.TemporaryDirectory(prefix='private manager command ') as directory:
+#             home = Path(directory)
+#             (home/'bin').mkdir()
+#             (home/'work').mkdir()
+#             executable = home/'bin/arbol-root'
+#             script = home/'private manager.py'
+#             script.write_text('import json,sys,time\n'
+#                               'if sys.argv[-1] == "wait": time.sleep(30)\n'
+#                               'else: print(json.dumps({"root":"sapling","private":True}))\n')
+#             # Packaged CPython itself lives beneath "Application Support"; never put it in a shebang.
+#             executable.write_text('#!/bin/sh\nexec '+shlex.join([os.path.realpath(sys.executable),'-IB',str(script)])
+#                                   +' "$@"\n')
+#             executable.chmod(0o700)
+#             frame = mock.Mock()
+#             frame.places.home,frame.places.bin,frame.work,frame.evidence = home,home/'bin',home/'work',home
+#             manager = Manager(frame,['reply'],'reply')
+#             try:
+#                 self.assertEqual(manager.finish()['reply'],{'root':'sapling','private':True})
+#             finally:
+#                 manager.close()
+#             waiting = Manager(frame,['wait'],'waiting')
+#             try:
+#                 self.assertIsNone(waiting.process.poll())
+#                 waiting.kill()
+#                 self.assertEqual(waiting.process.returncode,-signal.SIGKILL)
+#                 self.assertNotIn(waiting.process.pid,processes())
+#             finally:
+#                 waiting.close()
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_stopping_drills.py::StoppingJudgment.test_saved_graceful_reply_is_valid_but_force_and_settling_cannot_be_invented
+# Reason: Fixture wrappers, recorded-field predicates and ordinary fake-process checks repeat stronger actual process freeze cleanup and top-tier verified-group identity. Case reviewed: sapling.stop-reply-judgment
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_stopping_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_saved_graceful_reply_is_valid_but_force_and_settling_cannot_be_invented(self) -> None:
+#         """sapling.stop-reply-judgment"""
+#         stop_state({'reply':{'ended':'saved','forced':False}},'cancelled',forced=False)
+#         stop_state({'reply':{'ended':'interrupted','forced':True,'settling':{'settled':'interrupted'}}},
+#                    'interrupted',forced=True)
+#         for reply in [{'ended':'none','forced':False},{'ended':'interrupted','forced':False},
+#                       {'ended':'interrupted','forced':True}]:
+#             with self.subTest(reply=reply),self.assertRaises(DrillError):
+#                 stop_state({'reply':reply},'interrupted',forced=True)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_stopping_drills.py::StoppingJudgment.test_reuse_requires_retained_passing_checks_source_status_and_chosen_build
+# Reason: Fixture wrappers, recorded-field predicates and ordinary fake-process checks repeat stronger actual process freeze cleanup and top-tier verified-group identity. Case reviewed: sapling.newer-build-receipt
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_stopping_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_reuse_requires_retained_passing_checks_source_status_and_chosen_build(self) -> None:
+#         """sapling.newer-build-receipt"""
+#         with tempfile.TemporaryDirectory() as directory:
+#             home = Path(directory)
+#             evidence = home/'evidence'
+#             journal = evidence/'stopping-drills/newer-build-receipts.jsonl'
+#             journal.parent.mkdir(parents=True)
+#             checks = [{'name':name,'passed':True} for name in ['unit','layout','migration']]
+#             source = {'commit':'verified','branch':'main','uncommittedChanges':False}
+#             record = {'component':'arbol-root','build':'2','status':'working','root':'sapling',
+#                       'source':source,'checks':checks}
+#             folder = home/'Library/Application Support/Arbol/builds/arbol-root/2'
+#             folder.mkdir(parents=True)
+#             file = folder/'build.json'
+#             file.write_text(json.dumps(record))
+#             report = evidence/'report.json'
+#             report.write_text(json.dumps({'passed':True,'check':'sapling.newer-build','newRootBuild':'2',
+#                                           'built':{'source':source,'checks':checks}}))
+#             journal.write_text(json.dumps({'report':str(report)})+'\n')
+#             frame = mock.Mock()
+#             frame.places.home,frame.places.evidence = home,evidence
+#             frame.calls.run.return_value = {'rootBuild':'2'}
+#             self.assertTrue(reuse_build(frame)['reusedQualifiedBuild'])
+#             for changed in [{**record,'status':'failed'},{**record,'checks':[]},
+#                             {**record,'source':{'commit':'changed'}}]:
+#                 file.write_text(json.dumps(changed))
+#                 with self.subTest(changed=changed),self.assertRaises(DrillError):
+#                     reuse_build(frame)
+#             file.write_text(json.dumps(record))
+#             frame.calls.run.return_value = {'rootBuild':'3'}
+#             with self.assertRaises(DrillError):
+#                 reuse_build(frame)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END

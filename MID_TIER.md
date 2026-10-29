@@ -62,3 +62,7 @@ Source remains available; writing or running these checks requires a separate te
 | [`test_private_server_ignores_caller_pg_variables_and_dumps_a_stable_schema`](tests/mid/test_mid_sql_support.py#L12) | root.sql-private-server | A real private PostgreSQL server must ignore ambient owner connection settings, use its own Unix socket and remove its private data on exit. |
 | [`test_a_private_process_is_thawed_after_success_body_failure_and_real_signals`](tests/mid/test_mid_stopping_drills.py#L10) | sapling.freeze-cleanup | Freezes a real process and interrupts the controller through errors and actual signals; kernel state and restored handlers prove it is not left stopped. |
 | [`test_failure_during_stop_delivery_still_attempts_to_thaw_the_same_owned_process`](tests/mid/test_mid_stopping_drills.py#L40) | sapling.freeze-delivery-race | Injects interruption at stop delivery and independently records the compensating CONT action for the same verified identity; covers the narrow cancellation window before context entry. |
+
+## Separate testing and low-tier history — SYL-330
+
+All test work, including top tier, belongs to a separate task explicitly requested by the owner. Only the owner decides when implementation is ready for tests. Previous low-tier removals are preserved as commented file-end examples, with reasons and source revisions in [the inventory](docs/test-inventory.md#commented-low-tier-source--syl-330). They add no retained mid-tier cases and must not be enabled or recreated.

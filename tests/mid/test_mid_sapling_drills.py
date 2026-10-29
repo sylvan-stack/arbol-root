@@ -192,3 +192,362 @@ class ReadOnly(_support.ReadOnly):
             finally:
                 server.remove()
 # TEST-TIER-END tests/test_sapling_drills.py::ReadOnly.test_inspection_uses_its_private_server_and_cannot_write
+
+# LOW TIER — DO NOT ENABLE OR RECREATE
+# Historical examples only. Read before adding related tests; never execute.
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Outage.test_failed_restore_is_reported_and_original_handlers_are_still_restored
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.restore-failure: an unverified restoration cannot produce a passing receipt.
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_failed_restore_is_reported_and_original_handlers_are_still_restored(self) -> None:
+#         """sapling.restore-failure: an unverified restoration cannot produce a passing receipt."""
+#         with tempfile.TemporaryDirectory() as temporary:
+#             receipt = Path(temporary)/'failed.json'
+#             state = [True]
+#             def stop() -> None:
+#                 state[0] = False
+#             def restore() -> None:
+#                 raise RuntimeError('private planted restore failure')
+#             handlers = {number:signal.getsignal(number) for number in (signal.SIGINT,signal.SIGTERM)}
+#             with self.assertRaisesRegex(DrillError,'restoration did not pass'):
+#                 with stopped(stop=stop,restore=restore,healthy=lambda:state[0],receipt=receipt):
+#                     pass
+#             self.assertFalse(json.loads(receipt.read_text())['restored'])
+#             self.assertEqual({number:signal.getsignal(number) for number in handlers},handlers)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Frame.test_receipts_are_private_and_never_overwrite_an_earlier_attempt
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.receipt
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_receipts_are_private_and_never_overwrite_an_earlier_attempt(self) -> None:
+#         """sapling.receipt"""
+#         path = self.places.evidence/'request.json'
+#         new_json(path,{'message':'fictional 🌲'})
+#         self.assertEqual(stat.S_IMODE(path.stat().st_mode),0o600)
+#         with self.assertRaises(FileExistsError):
+#             new_json(path,{'message':'must not replace'})
+#         self.assertEqual(json.loads(path.read_text())['message'],'fictional 🌲')
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Frame.test_wait_has_a_deadline_and_never_retries_after_that_deadline
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.wait
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_wait_has_a_deadline_and_never_retries_after_that_deadline(self) -> None:
+#         """sapling.wait"""
+#         moment = [0.0]
+#         calls = []
+#         def probe() -> None:
+#             calls.append(moment[0])
+#         def pause(delay: float) -> None:
+#             moment[0] += delay
+#         with self.assertRaises(DrillError):
+#             wait_for(probe,seconds=1,interval=0.3,clock=lambda:moment[0],pause=pause)
+#         self.assertEqual(moment[0],1)
+#         self.assertLessEqual(max(calls),1)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Frame.test_budget_reserves_before_submission_caps_ten_and_never_replays_an_exchange
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.budget
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_budget_reserves_before_submission_caps_ten_and_never_replays_an_exchange(self) -> None:
+#         """sapling.budget"""
+#         budget = Budget(self.places.evidence)
+#         exchanges = [str(uuid.uuid4()) for _ in range(10)]
+#         for exchange in exchanges:
+#             budget.reserve(exchange)
+#         self.assertEqual(budget.status()['remaining'],0)
+#         with self.assertRaises(DrillError):
+#             budget.reserve(str(uuid.uuid4()))
+#         with self.assertRaises(DrillError):
+#             budget.reserve(exchanges[0])
+#         budget.finish(exchanges[0],'completed',usage={'costUSD':0.001})
+#         self.assertEqual(budget.status()['usedOrReserved'],10)
+#         with self.assertRaises(DrillError):
+#             budget.finish(exchanges[0],'no_vendor')
+#         budget.finish(exchanges[1],'no_vendor')
+#         budget.reserve(str(uuid.uuid4()),'SYL-187')
+#         self.assertEqual(budget.status()['remaining'],0)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Frame.test_torn_or_unknown_budget_history_refuses_new_spending
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.budget-refusal
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_torn_or_unknown_budget_history_refuses_new_spending(self) -> None:
+#         """sapling.budget-refusal"""
+#         folder = self.places.evidence
+#         folder.mkdir()
+#         journal = folder/'live-message-budget.jsonl'
+#         for content in ['{"version":1', '{"version":2}\n', 'not-json\n']:
+#             journal.write_text(content)
+#             with self.subTest(content=content),self.assertRaises(DrillError):
+#                 Budget(folder).reserve(str(uuid.uuid4()))
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Creation.test_creation_runs_the_named_steps_and_preserves_receipts
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.creation
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_creation_runs_the_named_steps_and_preserves_receipts(self) -> None:
+#         """sapling.creation"""
+#         self.calls.run.side_effect = self.replies()
+#         with mock.patch('sapling_creation.merged_source',return_value='merged-source'):
+#             result = make_sapling(self.places,self.home/'readonly',commands=self.calls,
+#                                   inspector=lambda _places:self.inspector)
+#         self.assertTrue(result['current'])
+#         actual = [call.args[:2] for call in self.calls.run.call_args_list]
+#         self.assertEqual(actual,[('arbol-roots','list'),('arbol-roots','create'),('arbol-builds','build'),
+#                                  ('arbol-roots','migrate'),('arbol-roots','ready'),('arbol-roots','list'),
+#                                  ('arbol-root','--root')])
+#         self.assertEqual(len(list(Path(result['receipt']).glob('*.json'))),6)
+#         self.assertEqual(result['vendorRequests'],0)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Creation.test_existing_or_unpublished_root_is_never_migrated_or_removed
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.creation-refusal
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_existing_or_unpublished_root_is_never_migrated_or_removed(self) -> None:
+#         """sapling.creation-refusal"""
+#         for existing in ['catalogue','folder','settings']:
+#             self.calls.reset_mock()
+#             self.calls.run.side_effect = [[{'root':'sapling'}] if existing == 'catalogue' else []]
+#             target = self.places.roots/'sapling' if existing == 'folder' else self.home/'.arbol/roots/sapling'
+#             if existing != 'catalogue':
+#                 target.mkdir(parents=True)
+#             with self.subTest(existing=existing),self.assertRaises(DrillError):
+#                 make_sapling(self.places,self.home/'readonly',commands=self.calls)
+#             self.assertEqual(self.calls.run.call_count,1)
+#             if existing != 'catalogue':
+#                 target.rmdir()
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Creation.test_failed_build_stops_before_migration_and_keeps_created_receipt
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.creation-failure
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_failed_build_stops_before_migration_and_keeps_created_receipt(self) -> None:
+#         """sapling.creation-failure"""
+#         replies = self.replies()
+#         replies[2] = {'root':'sapling','status':'failed'}
+#         self.calls.run.side_effect = replies
+#         with mock.patch('sapling_creation.merged_source',return_value='merged-source'):
+#             with self.assertRaises(DrillError):
+#                 make_sapling(self.places,self.home/'readonly',commands=self.calls)
+#         self.assertEqual(self.calls.run.call_count,3)
+#         receipts = list((self.places.evidence/'creation-attempts').iterdir())
+#         self.assertEqual(len(receipts),1)
+#         self.assertTrue((receipts[0]/'created.json').is_file())
+#         self.assertEqual(json.loads((receipts[0]/'failure.json').read_text())['phase'],'build')
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Creation.test_branch_source_is_refused_before_create
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.creation-source
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_branch_source_is_refused_before_create(self) -> None:
+#         """sapling.creation-source"""
+#         self.calls.run.return_value = []
+#         with mock.patch('sapling_creation.merged_source',side_effect=DrillError('unmerged source')):
+#             with self.assertRaises(DrillError):
+#                 make_sapling(self.places,self.home/'branch',commands=self.calls)
+#         self.assertEqual(self.calls.run.call_count,1)
+#         self.assertFalse(self.places.evidence.exists())
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_preflight_does_not_submit_and_two_explicit_submissions_keep_the_same_chat
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_preflight_does_not_submit_and_two_explicit_submissions_keep_the_same_chat(self) -> None:
+#         """sapling.messages"""
+#         preflight = real_messages(self.places,commands=self.calls)
+#         self.assertTrue(preflight['preflightOnly'])
+#         self.assertEqual(self.calls.starts,0)
+#         result = real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+#         self.assertEqual(result['submissions'],2)
+#         self.assertEqual(result['budget']['remaining'],8)
+#         self.assertEqual(result['reportedCostUSD'],'0.002')
+#         self.assertEqual([item['number'] for item in result['messages']],[1,2])
+#         self.assertNotIn('--chat',self.calls.requests[0]['arguments'])
+#         self.assertIn('--chat',self.calls.requests[1]['arguments'])
+#         self.assertTrue(result['messages'][1]['remembered'])
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_ambiguous_start_counts_and_is_never_automatically_retried
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages-ambiguous
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_ambiguous_start_counts_and_is_never_automatically_retried(self) -> None:
+#         """sapling.messages-ambiguous"""
+#         self.calls.fail_start = True
+#         with self.assertRaisesRegex(DrillError,'ambiguous acceptance'):
+#             real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+#         self.assertEqual(self.calls.starts,1)
+#         status = Budget(self.places.evidence).status()
+#         self.assertEqual(status['usedOrReserved'],1)
+#         self.assertEqual(status['attempts'][0]['state'],'ambiguous')
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_no_two_message_allowance_means_no_submission
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages-allowance
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_no_two_message_allowance_means_no_submission(self) -> None:
+#         """sapling.messages-allowance"""
+#         for _ in range(9):
+#             Budget(self.places.evidence).reserve(str(uuid.uuid4()))
+#         with self.assertRaises(DrillError):
+#             real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+#         self.assertEqual(self.calls.starts,0)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_known_vendor_retry_deadline_blocks_even_a_cached_report_showing_available_capacity
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages-retry-deadline
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_known_vendor_retry_deadline_blocks_even_a_cached_report_showing_available_capacity(self) -> None:
+#         """sapling.messages-retry-deadline"""
+#         budget = Budget(self.places.evidence)
+#         exchange = str(uuid.uuid4())
+#         budget.reserve(exchange)
+#         budget.finish(exchange,'ambiguous',usage={'outcome':'failed','error':'rate_limited',
+#                                                  'retryNotBeforeUnix':time.time()+3600})
+#         with self.assertRaisesRegex(DrillError,'deadline has not passed'):
+#             real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+#         self.assertEqual(self.calls.starts,0)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_reached_or_unavailable_usage_never_submits
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages-usage
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_reached_or_unavailable_usage_never_submits(self) -> None:
+#         """sapling.messages-usage"""
+#         original = self.calls.run
+#         reports: list[dict[str,Any]] = [{'outcome':'unavailable','windows':[]},
+#                                        {'outcome':'ok','windows':[{'limitReached':True}]},
+#                                        {'outcome':'ok','windows':[{'usedPercent':100}]}]
+#         for report in reports:
+#             def run(program: str, *args: str, selected: dict[str, Any] = report, **options: Any) -> Any:
+#                 if program == 'arbol-claude-driver' and 'usage' in args:
+#                     return selected
+#                 return original(program,*args,**options)
+#             with mock.patch.object(self.calls,'run',side_effect=run):
+#                 with self.assertRaises(DrillError):
+#                     real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+#         self.assertEqual(self.calls.starts,0)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_elapsed_cached_limit_permits_one_explicit_same_chat_pair
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages-expired-usage
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_elapsed_cached_limit_permits_one_explicit_same_chat_pair(self) -> None:
+#         """sapling.messages-expired-usage"""
+#         original = self.calls.run
+#         report: dict[str,Any] = {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+#                   'windows':[{'limitReached':True,'usedPercent':104,'resetsAt':'2000-01-01T01:00:00Z'},
+#                              {'kind':'weekly','usedPercent':20,'limitReached':False}]}
+#
+#         def run(program: str, *args: str, **options: Any) -> Any:
+#             if program == 'arbol-claude-driver' and 'usage' in args:
+#                 return report
+#             return original(program,*args,**options)
+#
+#         with mock.patch.object(self.calls,'run',side_effect=run):
+#             result = real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+#         self.assertTrue(result['passed'])
+#         self.assertEqual(self.calls.starts,2)
+#         self.assertEqual(report['windows'][0]['usedPercent'],104)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_elapsed_window_does_not_hide_unknown_future_or_other_active_limits
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages-unproved-reset
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_elapsed_window_does_not_hide_unknown_future_or_other_active_limits(self) -> None:
+#         """sapling.messages-unproved-reset"""
+#         original = self.calls.run
+#         expired = {'limitReached':True,'resetsAt':'2000-01-01T01:00:00Z'}
+#         reports: list[dict[str,Any]] = [
+#             {'outcome':'ok','windows':[expired]},
+#             {'outcome':'ok','fetchedAt':'invalid','windows':[expired]},
+#             {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00','windows':[expired]},
+#             {'outcome':'ok','fetchedAt':'2000-01-01T02:00:00Z','windows':[expired]},
+#             {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+#              'windows':[{'limitReached':True,'resetsAt':'2099-01-01T00:00:00Z'}]},
+#             {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+#              'windows':[{'limitReached':True,'resetsAt':'invalid'}]},
+#             {'outcome':'ok','fetchedAt':'2000-01-01T00:00:00Z',
+#              'windows':[expired,{'usedPercent':100,'resetsAt':'2099-01-01T00:00:00Z'}]},
+#         ]
+#         for report in reports:
+#             def run(program: str, *args: str, selected: dict[str,Any] = report, **options: Any) -> Any:
+#                 if program == 'arbol-claude-driver' and 'usage' in args:
+#                     return selected
+#                 return original(program,*args,**options)
+#             with self.subTest(report=report),mock.patch.object(self.calls,'run',side_effect=run):
+#                 with self.assertRaises(DrillError):
+#                     real_messages(self.places,send=True,commands=self.calls,inspector=self.inspector)
+#         self.assertEqual(self.calls.starts,0)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_sapling_drills.py::Messages.test_judgement_refuses_lost_history_wrong_route_or_missing_usage
+# Reason: Mocked provisioning, usage predicates, journal defaults and report-field checks mirror drill implementation; retain real outage recovery, readonly SQL, shell quoting, transient-file detection and competing spend reservations. Case reviewed: sapling.messages-judgement
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_sapling_drills.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_judgement_refuses_lost_history_wrong_route_or_missing_usage(self) -> None:
+#         """sapling.messages-judgement"""
+#         request = self.places.evidence/'request.json'
+#         new_json(request,{'message':'Remember this word for this chat: pinefixture. Reply remembered.',
+#                           'route':{'driver':'claude','subscription':'anthropic','model':'haiku'}})
+#         accepted = self.calls.run('arbol-root','start','--exchange',str(uuid.uuid4()),'--request',str(request))
+#         good = self.calls.data()
+#         for case in ['word','route','tokens']:
+#             data = json.loads(json.dumps(good))
+#             if case == 'route':
+#                 data['exchange']['route']['model'] = 'other'
+#             elif case == 'tokens':
+#                 data['runs'][0]['usage'] = {}
+#             with self.subTest(case=case),self.assertRaises(DrillError):
+#                 judge(data,accepted,self.calls.requests[0]['request']['message'],1,
+#                       remembered='not-the-remembered-word' if case == 'word' else None)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
