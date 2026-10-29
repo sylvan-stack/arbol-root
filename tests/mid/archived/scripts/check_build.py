@@ -1,4 +1,4 @@
-"""Run the manager and conformance unit tests with this image's interpreter."""
+"""Run the top-tier tests with this image's interpreter."""
 
 from __future__ import annotations
 import subprocess
@@ -14,16 +14,14 @@ from scripts.package_support import verify  # noqa: E402
 
 
 def main() -> int:
-    print('SYL-327 reduced the retained test selection. Full Build qualification requires an explicitly requested review of the qualification map; see TESTS.md.', file=sys.stderr)
-    return 1
     try:
         verify(ROOT)
         python = ROOT / 'runtime/python/bin/python3.14'
-        for start, top in [('tests', 'tests'), ('contract/conformance/tests', 'contract/conformance')]:
-            result = subprocess.run([str(python), '-I', '-B', '-m', 'unittest', 'discover', '-s', start, '-t', top, '-v'],
-                                    cwd=ROOT, check=False)
-            if result.returncode:
-                return 1
+        # A Build runs the top tier only (SYL-329); the mid tier runs only when the owner asks.
+        result = subprocess.run([str(python), '-I', '-B', '-m', 'unittest', 'discover', '-s', 'tests/top', '-t', 'tests', '-v'],
+                                cwd=ROOT, check=False)
+        if result.returncode:
+            return 1
         verify(ROOT)
     except (OSError, ValueError, KeyError) as error:
         print(f'Root Build unit check failed: {error}', file=sys.stderr)
