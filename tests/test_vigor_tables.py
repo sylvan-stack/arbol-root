@@ -1,7 +1,13 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 """Subscriptions Vigor's tables in both Roots' layouts and the migration check, on a check-owned socket-only server."""
 
 from __future__ import annotations
+import copy
+import json
+import os
+import subprocess
+from typing import Any
+
 
 import contextlib
 import shutil
@@ -15,6 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "roots/sapling/drills"))
 sys.path.insert(0, str(ROOT / "contract/conformance"))
+from rct_conformance.postgres import SqlError  # noqa: E402
+from scripts.check_layout import run_layout  # noqa: E402
+from scripts.check_migration import Origin, run_migration  # noqa: E402
+from scripts.vigor_tables import INDEX, REPORTS, RESULTS, TABLES, present, preserved, rows, seed  # noqa: E402
+
 
 from scripts.sql_support import BuildInput, SqlLab, private_server  # noqa: E402
 
@@ -60,7 +71,6 @@ class VigorTables(unittest.TestCase):
         self.lab.run_file(name, self.inputs.file("chat-tables.sql"))
         self.lab.run_file(name, ROOT / "roots" / root / "layout.sql")
         return name
-
 
 
 # Archived complete imports; restore needed names in their original scope, not at this file tail.

@@ -1,5 +1,8 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 from __future__ import annotations
+import subprocess
+from types import SimpleNamespace
+
 
 import contextlib
 import signal
@@ -10,6 +13,10 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from arbol_root.groups import continuing, force_group, members  # noqa: E402
+from arbol_root.model import Identity, Refusal  # noqa: E402
+from arbol_root.stop import Observed, force_end, stop  # noqa: E402
+
 from management_support import Fixture  # noqa: E402
 from test_listing import record  # noqa: E402
 from test_stop import MovingClock  # noqa: E402

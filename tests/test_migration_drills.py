@@ -1,7 +1,14 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 """Jensen helpers use disposable PostgreSQL, fictional rows and owned private clients only."""
 
 from __future__ import annotations
+import json
+import subprocess
+import tempfile
+import threading
+from datetime import UTC, datetime
+from unittest import mock
+
 
 import contextlib
 import os
@@ -15,6 +22,21 @@ from typing import Any, cast
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(ROOT/'roots/sapling/drills'))
+from drill_support import DrillError, Inspector, Places, wait_for  # noqa: E402
+from migration_support import (  # noqa: E402
+    Command,
+    Snapshot,
+    SourceLock,
+    client_folder,
+    direct_psql,
+    fingerprints,
+    thaw_client,
+)
+from sapling_outage import stopped  # noqa: E402
+from stopping_support import frozen  # noqa: E402
+from trunk_drill_support import Exchange, Frame, processes  # noqa: E402
+from scripts.migration_fixtures import CHATS, EXCHANGES, SPECIAL, seed  # noqa: E402
+
 from drill_support import Inspector, Places  # noqa: E402
 from trunk_drill_support import Frame  # noqa: E402
 

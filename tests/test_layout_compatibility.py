@@ -1,5 +1,6 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 from __future__ import annotations
+
 
 import contextlib
 import json
@@ -11,6 +12,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts.check_layout import run_layout  # noqa: E402
+from scripts.layout_compatibility import earlier_build  # noqa: E402
+
 import test_sql_support  # noqa: E402
 
 from scripts.sql_support import BuildInput, SqlLab, private_server  # noqa: E402

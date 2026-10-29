@@ -1,7 +1,14 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 """First Roots drill helpers use private state and their own PostgreSQL server."""
 
 from __future__ import annotations
+import os
+import shlex
+import signal
+import stat
+import subprocess
+import time
+
 
 import json
 import sys
@@ -15,6 +22,12 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT / 'roots/sapling/drills'))
 sys.path.insert(0,str(ROOT / 'contract/conformance'))
+from drill_support import Budget, Commands, DrillError, Inspector, Places, new_json, wait_for  # noqa: E402
+from rct_conformance.postgres import Server  # noqa: E402
+from sapling_creation import make_sapling  # noqa: E402
+from sapling_messages import judge, real_messages  # noqa: E402
+from sapling_outage import DirectoryWatch, Installed, stopped  # noqa: E402
+
 from drill_support import Commands, DrillError, Inspector, Places  # noqa: E402
 
 
