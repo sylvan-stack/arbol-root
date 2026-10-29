@@ -2,111 +2,11 @@
 from __future__ import annotations
 
 import test_backend_tables as _support
-from test_backend_tables import (
-    Any,
-    BackendTables,
-    BuildInput,
-    CHATS,
-    EXCHANGES,
-    OperationalBoundary,
-    Origin,
-    Path,
-    ROOT,
-    SqlLab,
-    ThreadPoolExecutor,
-    contextlib,
-    copy,
-    counter,
-    invoke,
-    json,
-    os,
-    private_server,
-    reply,
-    rows,
-    run_layout,
-    run_migration,
-    seed,
-    shutil,
-    subprocess,
-    sys,
-    tempfile,
-    time,
-    unittest,
-    uuid,
-)
-
-
-class OperationalBoundary(_support.OperationalBoundary):
-# TEST-TIER-BEGIN tests/test_backend_tables.py::OperationalBoundary.test_default_preview_does_not_open_an_owner_folder_or_start_a_build
-    def test_default_preview_does_not_open_an_owner_folder_or_start_a_build(self) -> None:
-        """sapling.backend-layout-preview"""
-        with tempfile.TemporaryDirectory(prefix="backend-preview-") as home:
-            result = subprocess.run(
-                [sys.executable, "-I", "-B", str(ROOT / "roots/sapling/drills/drill-backend-layouts.py")],
-                env={**os.environ, "HOME": home},
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(
-                json.loads(result.stdout), {"preflightOnly": True, "roots": ["sapling", "jensen"], "realMessages": 0}
-            )
-            self.assertFalse(list(Path(home).iterdir()))
-# TEST-TIER-END tests/test_backend_tables.py::OperationalBoundary.test_default_preview_does_not_open_an_owner_folder_or_start_a_build
-
-# TEST-TIER-BEGIN tests/test_backend_tables.py::OperationalBoundary.test_operational_guard_detects_old_row_schema_and_new_counter_damage
-    def test_operational_guard_detects_old_row_schema_and_new_counter_damage(self) -> None:
-        """sapling.backend-layout-preservation"""
-        sys.path.insert(0, str(ROOT / "roots/sapling/drills"))
-        from backend_layout_drills import BACKEND, preserved
-        from drill_support import DrillError
-
-        before: dict[str, Any] = {
-            "history": {"tables": {"chats": {"encodedRows": ["exact old row"]}}},
-            "schema": {"relations": ["old relation"], "comments": ["old comment"]},
-        }
-        after: dict[str, Any] = {
-            **copy.deepcopy(before),
-            "backend": {"counts": {name: 0 for name in BACKEND}, "counter": {"last_value": 1, "is_called": False}},
-        }
-        preserved(before, after)
-        for fault in ("row", "schema", "counter"):
-            bad = copy.deepcopy(after)
-            if fault == "row":
-                bad["history"]["tables"]["chats"]["encodedRows"] = ["different"]
-            elif fault == "schema":
-                bad["schema"]["comments"] = []
-            else:
-                bad["backend"]["counter"]["is_called"] = True
-            with self.subTest(fault=fault), self.assertRaises(DrillError):
-                preserved(before, bad)
-# TEST-TIER-END tests/test_backend_tables.py::OperationalBoundary.test_operational_guard_detects_old_row_schema_and_new_counter_damage
-
+from test_backend_tables import (CHATS ,EXCHANGES ,ThreadPoolExecutor ,counter ,invoke ,reply ,rows ,time ,uuid)
 
 
 class BackendTables(_support.BackendTables):
-# TEST-TIER-BEGIN tests/test_backend_tables.py::BackendTables.test_both_layouts_repeat_with_every_table_column_and_sequence_commented
-    def test_both_layouts_repeat_with_every_table_column_and_sequence_commented(self) -> None:
-        """root.backend-layouts"""
-        for root in ("sapling", "jensen"):
-            shutil.copy2(ROOT / "roots" / root / "layout.sql", self.inputs.folder / "layout/root-tables.sql")
-            report = run_layout(self.inputs, self.lab)
-            self.assertTrue(report["repeated"])
-# TEST-TIER-END tests/test_backend_tables.py::BackendTables.test_both_layouts_repeat_with_every_table_column_and_sequence_commented
 
-# TEST-TIER-BEGIN tests/test_backend_tables.py::BackendTables.test_whole_copy_is_exact_and_never_reuses_deleted_revisions
-    def test_whole_copy_is_exact_and_never_reuses_deleted_revisions(self) -> None:
-        """root.backend-whole"""
-        older = Origin(
-            "sapling", 1, self.inputs.file("chat-tables.sql"), self.inputs.folder / "roots/sapling/layout.sql"
-        )
-        report = run_migration(self.inputs, self.lab, older)
-        self.assertEqual((report["unchangedTables"], report["sourceRows"]), (12, 28))
-        self.assertEqual(
-            report["backendTables"], {"exact": True, "sourceCounterUnchanged": True, "savedNextRevisions": [101, 101]}
-        )
-# TEST-TIER-END tests/test_backend_tables.py::BackendTables.test_whole_copy_is_exact_and_never_reuses_deleted_revisions
 
 # TEST-TIER-BEGIN tests/test_backend_tables.py::BackendTables.test_empty_drafts_keep_consumed_and_not_yet_consumed_counter_states
     def test_empty_drafts_keep_consumed_and_not_yet_consumed_counter_states(self) -> None:
@@ -236,18 +136,3 @@ class BackendTables(_support.BackendTables):
         self.assertEqual(counter(server, target), before_counter)
         self.assertEqual(rows(server, source), original_source)
 # TEST-TIER-END tests/test_backend_tables.py::BackendTables.test_reimport_notes_and_local_input_are_preserved_and_pending_send_refuses
-
-# TEST-TIER-BEGIN tests/test_backend_tables.py::BackendTables.test_counter_restart_fault_is_detected_by_saved_draft_probe
-    def test_counter_restart_fault_is_detected_by_saved_draft_probe(self) -> None:
-        """root.backend-counter-fault"""
-        script = self.inputs.file("migrate.sql")
-        value = script.read_text()
-        old = "(SELECT last_value::numeric+is_called::integer FROM incoming_drafts_revision),"
-        self.assertIn(old, value)
-        script.write_text(value.replace(old, "1::numeric,"))
-        older = Origin(
-            "sapling", 1, self.inputs.file("chat-tables.sql"), self.inputs.folder / "roots/sapling/layout.sql"
-        )
-        with self.assertRaisesRegex(ValueError, "consumed revision"):
-            run_migration(self.inputs, self.lab, older)
-# TEST-TIER-END tests/test_backend_tables.py::BackendTables.test_counter_restart_fault_is_detected_by_saved_draft_probe
