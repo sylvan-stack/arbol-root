@@ -42,4 +42,8 @@ Restoration under SYL-326 used static checks only. No tests, Builds, provider ca
 
 ## Qualification after SYL-327
 
-The historical packaged unit gate refuses after this substantial pruning. A separately requested qualification task must review the reduced selection before restoring that gate. Individual top and mid selections remain governed by the policy above; their results cannot stand in for the former complete Build qualification.
+The packaged unit gate no longer stands for the former complete Build qualification: since SYL-329 it runs the top tier only, as Builds below says. Individual top and mid selections remain governed by the policy above; their results cannot stand in for the former complete Build qualification.
+
+## Builds
+
+Since SYL-329 (29 October 2026) a Build runs the top tier only. Its only check, `unit`, runs every case under `tests/top/`. The layout and migration programs and the conformance-suite tests are mid tier, so `arbol-build.json` no longer lists them; run them when the owner asks. The mid tier runs only when the owner asks for a mid-tier run.
