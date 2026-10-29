@@ -14,6 +14,8 @@ from scripts.package_support import verify  # noqa: E402
 
 
 def main() -> int:
+    print('SYL-327 reduced the retained test selection. Full Build qualification requires an explicitly requested review of the qualification map; see TESTS.md.', file=sys.stderr)
+    return 1
     try:
         verify(ROOT)
         python = ROOT / 'runtime/python/bin/python3.14'

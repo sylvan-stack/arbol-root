@@ -1,8 +1,7 @@
-"""The complete contract-1 scenario registry, in the order of RCT-4's table.
+"""Retained SYL-327 contract selection, in RCT-4 order.
 
-R16 runs after every scenario rather than as a scenario of its own (runner.py).
-Unit checks require every entry to be runnable and all conformance requirements
-of a Trunk to be covered by this registry.
+R16 still checks schema/row preservation after every selected scenario. This
+reduced selection is not evidence of historical full RCT qualification.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .home import ScenarioHome
-from .scenarios import r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r17, r18, r19
+from .scenarios import r2, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r17, r18
 
 
 @dataclass(frozen=True)
@@ -25,11 +24,8 @@ class Scenario:
 AFTER_EVERY_SCENARIO = "R16"
 
 SCENARIOS: list[Scenario] = [
-    Scenario("R1", "A plain answer in the background",
-             ("RCT-0.4", "0.6", "0.14", "1.1", "1.2", "1.5", "2.1", "2.4", "2.9", "2.20", "3.1", "3.2", "3.3"), r1.run),
     Scenario("R2", "The foreground, a failed and a cancelled one, Ctrl-C, and an output nothing reads",
              ("RCT-2.5", "2.8", "2.19"), r2.run),
-    Scenario("R3", "Refusals", ("RCT-0.3", "0.5", "2.2", "2.13", "2.17"), r3.run),
     Scenario("R4", "A repeat", ("RCT-2.3", "2.18", "2.19"), r4.run),
     Scenario("R5", "A chat goes on", ("RCT-0.4", "0.5", "2.17"), r5.run),
     Scenario("R6", "Signs of life", ("RCT-1.3",), r6.run),
@@ -44,7 +40,6 @@ SCENARIOS: list[Scenario] = [
     Scenario("R15", "Size limits", ("RCT-1.6", "1.12"), r15.run),
     Scenario("R17", "Characters PostgreSQL cannot store", ("RCT-3.10",), r17.run),
     Scenario("R18", "A Driver that falls silent", ("RCT-2.21",), r18.run),
-    Scenario("R19", "Small calls", ("RCT-1.11", "2.22"), r19.run),
 ]
 
 
@@ -55,7 +50,7 @@ def select(only: str | None, available: list[Scenario] | None = None) -> list[Sc
         return list(available)
     ids = [item for item in only.replace(",", " ").split() if item]
     if not ids:
-        raise ValueError("Give --only at least one scenario, such as --only R1,R8.")
+        raise ValueError("Give --only at least one scenario, such as --only R4,R8.")
     by_id = {scenario.id: scenario for scenario in available}
     for scenario_id in ids:
         if scenario_id == AFTER_EVERY_SCENARIO:

@@ -2,19 +2,7 @@
 from __future__ import annotations
 
 import test_management_boundary as _support
-from test_management_boundary import (
-    Boundary,
-    Fixture,
-    Path,
-    Refusal,
-    json,
-    mock,
-    os,
-    read_exchange,
-    record,
-    sys,
-    unittest,
-)
+from test_management_boundary import (Fixture ,json ,os ,record)
 
 
 class Boundary(_support.Boundary):
@@ -50,15 +38,3 @@ class Boundary(_support.Boundary):
         self.assertEqual((folder / 'control').read_bytes(), b'')
         self.assertEqual(sorted(p.name for p in settings.iterdir()), ['arbol-root.json','arbol.json'])
 # TEST-TIER-END tests/test_management_boundary.py::Boundary.test_every_command_uses_private_root_identity_without_payload_settings_or_retained_manager_files
-
-# TEST-TIER-BEGIN tests/test_management_boundary.py::Boundary.test_a_failed_record_stat_is_a_structured_refusal
-    def test_a_failed_record_stat_is_a_structured_refusal(self) -> None:
-        """root.stop-record-io"""
-        f = Fixture(self)
-        value = record(1)
-        f.put(value)
-        with mock.patch('arbol_root.stop.os.stat', side_effect=PermissionError('private fixture')):
-            with self.assertRaises(Refusal) as error:
-                read_exchange(f.context, value['exchange'])
-        self.assertEqual(error.exception.code, 'root_unavailable')
-# TEST-TIER-END tests/test_management_boundary.py::Boundary.test_a_failed_record_stat_is_a_structured_refusal
