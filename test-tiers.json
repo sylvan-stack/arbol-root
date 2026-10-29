@@ -604,10 +604,10 @@
       "status": "available",
       "line_before": 14,
       "end_before": 27,
-      "reason": "Packaged interpreter coordinates the explicitly requested retained unit selections and verifies image integrity; keep the release gate without claiming old full coverage.",
+      "reason": "Packaged interpreter coordinates the explicitly requested retained unit selections and verifies image integrity; keep the release gate without claiming old full coverage. Full Build qualification is now refused pending an explicitly requested review of the reduced qualification map.",
       "review": "individually-reviewed-higher-bar",
       "line": 16,
-      "file_sha256": "6a9456c5d20464cc53dace884ecebc24bbab2ece6bd26081a624235c4a188b85",
+      "file_sha256": "a048f47b8a348828133d9a57e33e35c206e6e10efbbbe8514771f24a23dedf4a",
       "previous_id": "scripts/check_build.py::main",
       "previous_file": "scripts/check_build.py",
       "previous_line": 12,
@@ -4774,6 +4774,7 @@
     },
     "tests_run": false,
     "top_changed": false,
-    "limits": "Counts are static inventory entries; programs, entry points and contained cases overlap. Reduced selections do not establish historical full qualification."
+    "limits": "Counts are static inventory entries; programs, entry points and contained cases overlap. Reduced selections do not establish historical full qualification.",
+    "qualification": "Historical packaged unit gate refuses pending explicitly requested qualification-map review."
   }
 }
