@@ -1,0 +1,126 @@
+
+# LOW TIER — DO NOT ENABLE OR RECREATE
+# Historical examples only. Read before adding related tests; never execute.
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::Statements.test_semicolons_comments_case_and_quoted_contents_have_distinct_meanings
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: root.layout-statements
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_semicolons_comments_case_and_quoted_contents_have_distinct_meanings(self) -> None:
+#         """root.layout-statements"""
+#         first = "COMMENT ON TABLE t IS 'A; -- kept /*literal*/''quote'; /* outer /* inner */ end */"
+#         other = " comment\non table T is 'A; -- kept /*literal*/''quote' ; -- ignored\n"
+#         self.assertEqual(statements(first), statements(other))
+#         with self.assertRaises(ValueError):
+#             preserves(first, first.replace('A;', 'a;'))
+#         preserves(first, first+"\nCOMMENT ON COLUMN t.x IS 'new';")
+#         self.assertEqual(len(statements("COMMENT ON TABLE t IS $$semi; -- text$$;")), 1)
+#         layout_statements('ALTER TABLE t ADD COLUMN IF NOT EXISTS x numeric(10,2) DEFAULT 1;')
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::Statements.test_incomplete_statements_client_commands_and_data_writes_are_refused
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: root.layout-ddl-boundary
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_incomplete_statements_client_commands_and_data_writes_are_refused(self) -> None:
+#         """root.layout-ddl-boundary"""
+#         for source in ["COMMENT ON TABLE t IS 'broken;", '/* broken', 'CREATE TABLE t(id integer)',
+#                        '\\connect owner\n', 'INSERT INTO t VALUES(1);', 'DELETE FROM t;',
+#                        'CREATE TABLE copy AS SELECT * FROM t;',
+#                        'ALTER TABLE t ADD COLUMN IF NOT EXISTS x integer, DROP COLUMN y;']:
+#             with self.subTest(source=source), self.assertRaises(ValueError):
+#                 layout_statements(source)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::LayoutCheck.test_both_packaged_files_run_twice_with_stable_dump_and_comments
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: root.layout-idempotence
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_both_packaged_files_run_twice_with_stable_dump_and_comments(self) -> None:
+#         """root.layout-idempotence"""
+#         report = run_layout(self.inputs(), self.lab)
+#         self.assertEqual(report, {'check':'layout','root':'fictionalnew','repeated':True,'earlierBuild':None})
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::LayoutCheck.test_a_nonrepeatable_statement_fails_on_its_second_run
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: root.layout-not-repeatable
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_a_nonrepeatable_statement_fails_on_its_second_run(self) -> None:
+#         """root.layout-not-repeatable"""
+#         own = ("CREATE TABLE fictional(id integer);"
+#                "COMMENT ON TABLE fictional IS 'Fictional'; COMMENT ON COLUMN fictional.id IS 'Identity';")
+#         with self.assertRaisesRegex(RuntimeError, 'already exists'):
+#             run_layout(self.inputs(own), self.lab)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::LayoutCheck.test_a_sequence_requires_its_comment_and_a_repeatable_create
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: root.layout-sequence-comments
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_a_sequence_requires_its_comment_and_a_repeatable_create(self) -> None:
+#         """root.layout-sequence-comments"""
+#         with self.assertRaisesRegex(ValueError, 'Every sequence'):
+#             run_layout(self.inputs('CREATE SEQUENCE IF NOT EXISTS fictional_counter;'),self.lab)
+#         report=run_layout(self.inputs("CREATE SEQUENCE IF NOT EXISTS fictional_counter; "
+#                                      "COMMENT ON SEQUENCE fictional_counter IS 'Fictional counter';"),self.lab)
+#         self.assertTrue(report['repeated'])
+#         with self.assertRaises(ValueError):
+#             layout_statements('CREATE SEQUENCE nonrepeatable;')
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::LayoutCheck.test_every_table_and_column_needs_a_comment
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: root.layout-comments
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_every_table_and_column_needs_a_comment(self) -> None:
+#         """root.layout-comments"""
+#         for own in ["CREATE TABLE IF NOT EXISTS fictional(id integer);",
+#                     "CREATE TABLE IF NOT EXISTS fictional(id integer); COMMENT ON TABLE fictional IS 'Fictional';"]:
+#             with self.subTest(own=own), self.assertRaisesRegex(ValueError, 'comment'):
+#                 run_layout(self.inputs(own), self.lab)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::LayoutCheck.test_a_client_command_cannot_create_a_database_or_connect_elsewhere
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: A client command cannot create a database or connect elsewhere.
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_a_client_command_cannot_create_a_database_or_connect_elsewhere(self) -> None:
+#         inputs = self.inputs('\\connect owner\n')
+#         with mock.patch.object(self.lab.server, 'createdb') as create:
+#             with self.assertRaises(ValueError):
+#                 run_layout(inputs, self.lab)
+#         create.assert_not_called()
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/test_mid_layout_check.py::LayoutCheck.test_check_entry_bootstraps_its_own_source_path_before_refusing_an_incomplete_image
+# Reason: Parser/comment/entry-path examples and repeated wrapper runs add no distinct evidence beyond the real packaged layout gate and restrictive-schema comparison. Case reviewed: root.layout-entry
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/test_mid_layout_check.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_check_entry_bootstraps_its_own_source_path_before_refusing_an_incomplete_image(self) -> None:
+#         """root.layout-entry"""
+#         with tempfile.TemporaryDirectory(prefix='root-layout-entry-') as temporary:
+#             folder = Path(temporary)
+#             for name in ['src','scripts','contract']:
+#                 shutil.copytree(ROOT / name,folder / name,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+#             answer = subprocess.run([sys.executable,'-I','-B',str(folder / 'scripts/check_layout.py')],
+#                                     capture_output=True,text=True,check=False,timeout=10)
+#             self.assertEqual(answer.returncode,1)
+#             self.assertIn('layout check failed:',answer.stderr)
+#             self.assertNotIn('Traceback',answer.stderr)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END

@@ -79,3 +79,113 @@ if __name__ == "__main__":
     unittest.main()
 
 # Archived complete imports; restore needed names in their original scope, not at this file tail.
+
+# LOW TIER — DO NOT ENABLE OR RECREATE
+# Historical examples only. Read before adding related tests; never execute.
+# LOW-TIER-BEGIN: tests/mid/archived/contract/conformance/tests/test_cli.py::Cli.test_without_initdb_on_the_search_path_it_ends_with_2_and_names_it
+# Reason: Conformance CLI option/report/default tables test straightforward harness branches; retain one actual schema-corruption negative control for the runner. Case reviewed: cli.programs: with psql, pg_ctl and createdb but no initdb on the search path, the suite ends with 2
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/archived/contract/conformance/tests/test_cli.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_without_initdb_on_the_search_path_it_ends_with_2_and_names_it(self) -> None:
+#         """cli.programs: with psql, pg_ctl and createdb but no initdb on the search path, the suite ends with 2
+#         before any scenario starts and names initdb."""
+#         with tempfile.TemporaryDirectory(prefix="rct-path-") as folder:
+#             for name in ("psql", "pg_ctl", "createdb"):
+#                 found = Path(psql()).parent / name
+#                 os.symlink(found, Path(folder) / name)
+#             result = suite("--trunk", TRUNK, "--root-contract", "1", path=f"{folder}:/usr/bin:/bin")
+#         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+#         self.assertIn("missing from the search path: initdb.", result.stderr)
+#         self.assertEqual(result.stdout, "")
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/archived/contract/conformance/tests/test_cli.py::Cli.test_wrong_input_ends_with_2_and_says_what_is_wrong
+# Reason: Conformance CLI option/report/default tables test straightforward harness branches; retain one actual schema-corruption negative control for the runner. Case reviewed: cli.input: an unknown option, a missing or doubled option, a Trunk that cannot be run, a version without
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/archived/contract/conformance/tests/test_cli.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_wrong_input_ends_with_2_and_says_what_is_wrong(self) -> None:
+#         """cli.input: an unknown option, a missing or doubled option, a Trunk that cannot be run, a version without
+#         layout.sql, an unknown scenario, or R16 alone."""
+#         cases = {
+#             "an unknown option": (["--trunk", TRUNK, "--root-contract", "1", "--fast"], "Unknown option: --fast"),
+#             "no --trunk": (["--root-contract", "1"], "Give --trunk."),
+#             "no --root-contract": (["--trunk", TRUNK], "Give --root-contract."),
+#             "--trunk twice": (["--trunk", TRUNK, "--trunk", TRUNK, "--root-contract", "1"], "only once"),
+#             "a Trunk that is not there": (["--trunk", "/nonexistent/arbol-trunk-trivial", "--root-contract", "1"],
+#                                           "does not exist or cannot be run"),
+#             "a Trunk not on the search path": (["--trunk", "arbol-trunk-nothing", "--root-contract", "1"],
+#                                                "is not on the search path"),
+#             "version 0": (["--trunk", TRUNK, "--root-contract", "0"], "such as 1, not 0"),
+#             "version 2": (["--trunk", TRUNK, "--root-contract", "2"], "version 2 has no layout.sql"),
+#             "an unknown scenario": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R1,R99"],
+#                                     "Unknown scenario: R99"),
+#             "R16 alone": (["--trunk", TRUNK, "--root-contract", "1", "--only", "R16"], "runs after every scenario"),
+#         }
+#         for name, (args, message) in cases.items():
+#             with self.subTest(name):
+#                 result = suite(*args)
+#                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+#                 self.assertIn(message, result.stderr)
+#                 self.assertIn("Usage: rct-conformance.py", result.stderr)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/archived/contract/conformance/tests/test_cli.py::Cli.test_a_whole_run_lists_every_scenario_and_reports_failures
+# Reason: Conformance CLI option/report/default tables test straightforward harness branches; retain one actual schema-corruption negative control for the runner. Case reviewed: cli.whole-run: without --only every scenario of RCT-4 runs and every failed check is reported.
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/archived/contract/conformance/tests/test_cli.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_a_whole_run_lists_every_scenario_and_reports_failures(self) -> None:
+#         """cli.whole-run: without --only every scenario of RCT-4 runs and every failed check is reported."""
+#         result = suite("--trunk", TRUNK + " --refuse", "--root-contract", "1")
+#         self.assertEqual(result.returncode, 1, result.stderr)
+#         lines = result.stdout.splitlines()
+#         self.assertEqual(lines[0], "FAIL R1 — A plain answer in the background")  # against a Trunk that does nothing
+#         self.assertEqual([line for line in lines if line.startswith("FAIL ")],
+#                          [f"FAIL {scenario.id} — {scenario.title}" for scenario in SCENARIOS])
+#         self.assertEqual(lines[-1], f"0/{len(SCENARIOS)} scenarios passed.")
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/archived/contract/conformance/tests/test_cli.py::Runner.test_failure_descriptions_can_print_lone_surrogates_as_valid_utf8
+# Reason: Conformance CLI option/report/default tables test straightforward harness branches; retain one actual schema-corruption negative control for the runner. Case reviewed: Failure descriptions can print lone surrogates as valid utf8.
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/archived/contract/conformance/tests/test_cli.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_failure_descriptions_can_print_lone_surrogates_as_valid_utf8(self) -> None:
+#         text = describe({"text": "\ud83d", "emoji": "😀"})
+#         self.assertEqual(text.encode("utf-8").decode("utf-8"), text)
+#         self.assertIn("\\ud83d", text)
+#         self.assertIn("😀", text)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/archived/contract/conformance/tests/test_cli.py::Runner.test_every_scenario_passing_is_status_0
+# Reason: Conformance CLI option/report/default tables test straightforward harness branches; retain one actual schema-corruption negative control for the runner. Case reviewed: Every scenario passing is status 0.
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/archived/contract/conformance/tests/test_cli.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_every_scenario_passing_is_status_0(self) -> None:
+#         lines: list[str] = []
+#         status = run_suite([Scenario("T1", "Nothing", (), lambda home: None)], self.make_home, lines.append)
+#         self.assertEqual((status, lines), (0, ["PASS T1 — Nothing", "1/1 scenarios passed."]))
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
+
+# LOW-TIER-BEGIN: tests/mid/archived/contract/conformance/tests/test_cli.py::Runner.test_only_chooses_scenarios_in_the_order_of_the_registry
+# Reason: Conformance CLI option/report/default tables test straightforward harness branches; retain one actual schema-corruption negative control for the runner. Case reviewed: Only chooses scenarios in the order of the registry.
+# Source: arbol-root@ef4fd6a30eca7130653b20e5eedf0da7be72aaa4:tests/mid/archived/contract/conformance/tests/test_cli.py
+# Historical fixtures and class context are available at the source revision; no active dependencies restored.
+# LOW-TIER-SOURCE-BEGIN
+#     def test_only_chooses_scenarios_in_the_order_of_the_registry(self) -> None:
+#         available = [Scenario("R1", "One", (), lambda home: None), Scenario("R2", "Two", (), lambda home: None)]
+#         self.assertEqual([s.id for s in select("R2, R1", available)], ["R1", "R2"])
+#         self.assertEqual([s.id for s in select("R2", available)], ["R2"])
+#         self.assertEqual(len(select(None, available)), 2)
+#         with self.assertRaises(ValueError):
+#             select(" , ", available)
+# LOW-TIER-SOURCE-END
+# LOW-TIER-END
