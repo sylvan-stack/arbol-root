@@ -1,5 +1,6 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 from __future__ import annotations
+
 
 import json
 import sys
@@ -8,6 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from scripts.build import copy_layout  # noqa: E402
 
 

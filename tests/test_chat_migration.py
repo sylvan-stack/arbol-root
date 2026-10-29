@@ -1,7 +1,9 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 """Private qualification of optional Root-owned migration modes; no owner Root or account is used."""
 
 from __future__ import annotations
+import json
+
 
 import contextlib
 import shutil
@@ -12,6 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
+from scripts.migration_modes import CAPABILITY, branch, read_modes  # noqa: E402
+from scripts.migration_protocol import REQUIRED, protocol  # noqa: E402
+
 from scripts.sql_support import BuildInput, SqlLab  # noqa: E402
 
 

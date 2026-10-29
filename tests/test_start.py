@@ -1,5 +1,6 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 from __future__ import annotations
+
 
 import json
 import os
@@ -14,6 +15,7 @@ from typing import Any, cast
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+
 from program_support import development  # noqa: E402
 
 from arbol_root.input import parse  # noqa: E402

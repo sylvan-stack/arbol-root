@@ -1,7 +1,15 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 """Backend layout/copy/counter acceptance on a check-owned socket-only server."""
 
 from __future__ import annotations
+import copy
+import json
+import os
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
 
 import contextlib
 import shutil
@@ -13,6 +21,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts.backend_tables import counter, rows  # noqa: E402
+from scripts.chat_migration_check import invoke, reply  # noqa: E402
+from scripts.check_layout import run_layout  # noqa: E402
+from scripts.check_migration import Origin, run_migration  # noqa: E402
+from scripts.migration_fixtures import CHATS, EXCHANGES, seed  # noqa: E402
+
 from scripts.migration_fixtures import seed  # noqa: E402
 from scripts.sql_support import BuildInput, SqlLab, private_server  # noqa: E402
 

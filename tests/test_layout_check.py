@@ -1,5 +1,8 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 from __future__ import annotations
+import subprocess
+from unittest import mock
+
 
 import contextlib
 import shutil
@@ -10,6 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts.check_layout import run_layout  # noqa: E402
+from scripts.sql_statements import layout_statements, preserves, statements  # noqa: E402
+
 import test_sql_support  # noqa: E402
 
 from scripts.sql_support import BuildInput, SqlLab, private_server  # noqa: E402

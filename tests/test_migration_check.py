@@ -1,5 +1,10 @@
-# Shared fixtures only; test bodies are in top/ and mid/. See TESTS.md.
+# Shared fixtures; case bodies live in top/ and mid/. See TESTS.md.
 from __future__ import annotations
+import json
+import stat
+from typing import Any
+from unittest import mock
+
 
 import contextlib
 import shutil
@@ -10,6 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
+from scripts.check_migration import Origin, check_migration, origin, run_migration  # noqa: E402
+
 import test_sql_support  # noqa: E402
 
 from scripts.check_migration import Origin, origin  # noqa: E402
