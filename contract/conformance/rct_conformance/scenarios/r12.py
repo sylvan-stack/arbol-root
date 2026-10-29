@@ -1,3 +1,4 @@
+# Test implementations moved to tests/mid/archived/contract/conformance/rct_conformance/scenarios/r12.py.
 """R12: lose PostgreSQL during work and after acceptance; recover both before and after the end."""
 
 from __future__ import annotations
@@ -10,12 +11,6 @@ from .r1 import END_SECONDS, accepted
 from .r13 import settled, tables
 
 
-# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r12.py::run
-# def run(home: ScenarioHome) -> None:
-#     during_work(home)
-#     after_acceptance(home)
-#     through_the_end(home)
-# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r12.py::run
 def run(home: ScenarioHome) -> None:
     raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 

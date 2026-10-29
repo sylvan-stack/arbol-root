@@ -1,3 +1,4 @@
+# Test implementations moved to tests/mid/archived/scripts/check_build.py.
 """Run the manager and conformance unit tests with this image's interpreter."""
 
 from __future__ import annotations
@@ -9,22 +10,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-# TEST-TIER-DISABLED-BEGIN scripts/check_build.py::main
-# def main() -> int:
-#     try:
-#         verify(ROOT)
-#         python = ROOT / 'runtime/python/bin/python3.14'
-#         for start, top in [('tests', 'tests'), ('contract/conformance/tests', 'contract/conformance')]:
-#             result = subprocess.run([str(python), '-I', '-B', '-m', 'unittest', 'discover', '-s', start, '-t', top, '-v'],
-#                                     cwd=ROOT, check=False)
-#             if result.returncode:
-#                 return 1
-#         verify(ROOT)
-#     except (OSError, ValueError, KeyError) as error:
-#         print(f'Root Build unit check failed: {error}', file=sys.stderr)
-#         return 1
-#     return 0
-# TEST-TIER-DISABLED-END scripts/check_build.py::main
 def main() -> int:
     raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
@@ -33,9 +18,3 @@ if __name__ == '__main__':
     raise SystemExit(main())
 
 # Archived complete imports; restore needed names in their original scope, not at this file tail.
-# TEST-TIER-IMPORTS-BEGIN scripts/check_build.py:5
-# import subprocess
-# TEST-TIER-IMPORTS-END scripts/check_build.py:5
-# TEST-TIER-IMPORTS-BEGIN scripts/check_build.py:11
-# from scripts.package_support import verify  # noqa: E402
-# TEST-TIER-IMPORTS-END scripts/check_build.py:11

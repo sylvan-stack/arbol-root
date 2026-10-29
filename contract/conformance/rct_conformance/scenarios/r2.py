@@ -1,3 +1,4 @@
+# Test implementations moved to tests/mid/archived/contract/conformance/rct_conformance/scenarios/r2.py.
 """R2: foreground lines and exit statuses, an unread output pipe, and Ctrl-C (RCT-2.5, 2.8, 2.19)."""
 
 from __future__ import annotations
@@ -12,12 +13,6 @@ from ..judge import check, equal, parse_line, wait_until
 from .r1 import END_SECONDS, MESSAGE, accepted
 
 
-# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r2.py::run
-# def run(home: ScenarioHome) -> None:
-#     foreground(home)
-#     unread(home)
-#     interrupt(home)
-# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r2.py::run
 def run(home: ScenarioHome) -> None:
     raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 

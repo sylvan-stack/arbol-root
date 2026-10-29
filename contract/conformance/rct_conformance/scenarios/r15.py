@@ -1,3 +1,4 @@
+# Test implementations moved to tests/mid/archived/contract/conformance/rct_conformance/scenarios/r15.py.
 """R15: bound each tool's streamed output and the whole file while keeping complete closing lines."""
 
 from __future__ import annotations
@@ -11,11 +12,6 @@ from .r1 import END_SECONDS, accepted
 MIB = 1024 * 1024
 
 
-# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r15.py::run
-# def run(home: ScenarioHome) -> None:
-#     tool_output(home)
-#     whole_file(home)
-# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r15.py::run
 def run(home: ScenarioHome) -> None:
     raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 

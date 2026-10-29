@@ -1,3 +1,4 @@
+# Test implementations moved to tests/mid/archived/contract/conformance/rct_conformance/scenarios/r11.py.
 """R11: whole Driver errors, missing launchers, and a folder that becomes read-only."""
 
 from __future__ import annotations
@@ -12,11 +13,6 @@ from .r1 import END_SECONDS, accepted
 from .r13 import settled, tables
 
 
-# TEST-TIER-DISABLED-BEGIN contract/conformance/rct_conformance/scenarios/r11.py::run
-# def run(home: ScenarioHome) -> None:
-#     driver_failures(home)
-#     folder_failure(home)
-# TEST-TIER-DISABLED-END contract/conformance/rct_conformance/scenarios/r11.py::run
 def run(home: ScenarioHome) -> None:
     raise RuntimeError('Tests are commented under the tier policy; see TESTS.md. Restore only in an explicitly requested testing task.')  # TEST-TIER-REFUSAL
 
