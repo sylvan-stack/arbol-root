@@ -72,7 +72,7 @@ def run() -> dict[str, Any]:
     results: dict[str, Any] = {}
     try:
         try:
-            source = places.home / "repos/sylvan-stack/readonly/arbol-root"
+            source = places.home / "repos/sylvan-stack/arbol-root"
             commit = merged_source(source)
             catalogue = frame.calls.run("arbol-roots", "list")
             before = {root: state(places, root) for root in ROOTS}

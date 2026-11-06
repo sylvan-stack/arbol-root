@@ -12,7 +12,7 @@ from sapling_creation import make_sapling  # noqa: E402
 def main() -> int:
     try:
         places = Places.owner()
-        source = places.home/'repos/sylvan-stack/readonly/arbol-root'
+        source = places.home/'repos/sylvan-stack/arbol-root'
         print(json.dumps(make_sapling(places,source)))
         return 0
     except Exception as error:

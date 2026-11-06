@@ -17,8 +17,8 @@ def merged_source(source: Path) -> str:
         return subprocess.check_output(['git','-C',str(source),*args],text=True,timeout=15).strip()
     require(git('branch','--show-current') == 'main', 'The manager Build source must be merged main.')
     require(not git('status','--porcelain'), 'The merged manager Build source must be clean.')
-    require(source.resolve() == (Path.home()/'repos/sylvan-stack/readonly/arbol-root').resolve(),
-            'The actual manager Build must read readonly/arbol-root.')
+    require(source.resolve() == (Path.home()/'repos/sylvan-stack/arbol-root').resolve(),
+            'The actual manager Build must read arbol-root.')
     return git('rev-parse','HEAD')
 
 

@@ -1,7 +1,7 @@
 """Subscriptions Vigor's tables (SGM-1): fictional rows for Root-owned SQL qualification, and the guarded installed step.
 
 Without `--run` the script previews and touches nothing. With `--run` it builds a manager of each retained Root from
-merged readonly source, qualifies it, and applies the additive layouts to both retained Roots with `arbol-roots layout`,
+merged source, qualifies it, and applies the additive layouts to both retained Roots with `arbol-roots layout`,
 proving every older row, schema object and backend row unchanged and the three Vigor tables present and empty.
 """
 
@@ -163,7 +163,7 @@ def run() -> dict[str, Any]:
     results: dict[str, Any] = {}
     try:
         try:
-            source = places.home / "repos/sylvan-stack/readonly/arbol-root"
+            source = places.home / "repos/sylvan-stack/arbol-root"
             commit = merged_source(source)
             catalogue = frame.calls.run("arbol-roots", "list")
             before = {root: state(places, root) for root in ROOTS}

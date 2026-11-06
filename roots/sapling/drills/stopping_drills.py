@@ -193,7 +193,7 @@ def reuse_build(frame: Frame) -> dict[str, Any]:
 
 
 def newer_build(frame: Frame) -> dict[str, Any]:
-    source = frame.places.home/'repos/sylvan-stack/readonly/arbol-root'
+    source = frame.places.home/'repos/sylvan-stack/arbol-root'
     commit = merged_source(source)
     catalogue = frame.calls.run('arbol-roots','list')
     root_record = (frame.places.roots/'sapling/root.json').read_bytes()
@@ -210,7 +210,7 @@ def newer_build(frame: Frame) -> dict[str, Any]:
             'The newer manager did not pass all three actual packaged checks.')
     require(built.get('source',{}).get('commit') == commit and built['source'].get('branch') == 'main'
             and built['source'].get('uncommittedChanges') is False,
-            'The newer manager did not use the exact clean merged readonly source.')
+            'The newer manager did not use the exact clean merged source.')
     listing = frame.calls.run('arbol-root','--root','sapling','list')
     row = next(value for value in listing['exchanges'] if value['exchange'] == exchange.id)
     require(listing['rootBuild'] == built['build'] and all(row[key] == accepted[key] for key in

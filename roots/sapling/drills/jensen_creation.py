@@ -106,7 +106,7 @@ def entry() -> int:
             signal.signal(number,interrupted)
         if args.run:
             places = Places.owner()
-            report = make_jensen(places,places.home/'repos/sylvan-stack/readonly/arbol-root')
+            report = make_jensen(places,places.home/'repos/sylvan-stack/arbol-root')
         else:
             report = {'preflightOnly':True,'root':'jensen','name':'Jensen Root','realMessages':0,'planned':'create and build'}
         print(json.dumps(report))

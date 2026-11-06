@@ -76,7 +76,7 @@ def copied(source: dict[str, Any], target: dict[str, Any], chat: str, result: di
 
 
 def upgrade(frame: MigrationFrame) -> dict[str, Any]:
-    source = frame.places.home/'repos/sylvan-stack/readonly/arbol-root'
+    source = frame.places.home/'repos/sylvan-stack/arbol-root'
     commit = merged_source(source)
     catalogue = frame.calls.run('arbol-roots','list')
     before_source,before = snapshot(frame,'sapling'),snapshot(frame,'jensen')
