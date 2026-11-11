@@ -196,8 +196,8 @@
       "identity_extension": {
         "beat": "SYL-399",
         "date": "2026-11-11",
-        "executed": false,
-        "note": "Written under SYL-399; not run: explicit mid-tier execution scope is pending."
+        "executed": true,
+        "note": "Passed 11 November 2026 (SYL-399) against Trivial Trunk Build d, with R16 after it, suite arbol-root@2f257a1; selected by the owner's explicit mid-tier request."
       }
     },
     {
