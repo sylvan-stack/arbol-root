@@ -177,10 +177,10 @@
       "status": "available",
       "line_before": 55,
       "end_before": 106,
-      "reason": "Real replacement competes with another replacement or next message; transactional rechecks must choose one winner while preserving old usage and excluding discarded text.",
+      "reason": "Real replacement competes with another replacement or next message; transactional rechecks must choose one winner while preserving old usage and excluding discarded text. SYL-399 adds RCT-2.23/TRV-0.14 identity: the stand-in's recorded requests for a first message without a chat, a named chat and a replacement must carry rootId \"rct\" and the chat stored for that Exchange, so a booking names the right chat.",
       "review": "individually-reviewed-higher-bar",
-      "line": 57,
-      "file_sha256": "b4a8358d5d7d441077dc5c241f8a7558204d601fe3fb297e6aeefbea713fd409",
+      "line": 68,
+      "file_sha256": "07a5b71699b528b64cd6e91238dacfca93cc546aeb80237458d9afc2f5f5b50c",
       "previous_id": "contract/conformance/rct_conformance/scenarios/r14.py::run",
       "previous_file": "contract/conformance/rct_conformance/scenarios/r14.py",
       "previous_line": 54,
@@ -192,7 +192,13 @@
       "execution": "explicit-testing-task-only",
       "restored_from_revision": "5b6c9a3713199734e4662407324e2dbc9250bedc",
       "previous_reason": "Contract scenario with a multi-step fixture and compatibility assertions. Reserved for explicit qualification; this reset does not establish a reason to keep the whole scenario active.",
-      "quality_review_revision": "ef4fd6a30eca7130653b20e5eedf0da7be72aaa4"
+      "quality_review_revision": "ef4fd6a30eca7130653b20e5eedf0da7be72aaa4",
+      "identity_extension": {
+        "beat": "SYL-399",
+        "date": "2026-11-11",
+        "executed": false,
+        "note": "Written under SYL-399; not run: explicit mid-tier execution scope is pending."
+      }
     },
     {
       "repo": "arbol-root",
