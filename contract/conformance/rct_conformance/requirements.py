@@ -38,6 +38,7 @@ CONFORMANCE_REQUIREMENTS = frozenset({
     "RCT-2.10",
     "RCT-2.21",
     "RCT-2.22",
+    "RCT-2.23",
     "RCT-2.11",
     "RCT-2.12",
     "RCT-2.13",

@@ -36,7 +36,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("R11", "Failures", ("RCT-2.9", "2.10", "2.20"), r11.run),
     Scenario("R12", "The database away", ("RCT-2.11", "2.12"), r12.run),
     Scenario("R13", "Settling at its edges", ("RCT-1.9", "2.12", "3.4"), r13.run),
-    Scenario("R14", "Sending again", ("RCT-2.13", "3.4", "3.9"), r14.run),
+    Scenario("R14", "Sending again", ("RCT-2.13", "2.23", "3.4", "3.9"), r14.run),
     Scenario("R15", "Size limits", ("RCT-1.6", "1.12"), r15.run),
     Scenario("R17", "Characters PostgreSQL cannot store", ("RCT-3.10",), r17.run),
     Scenario("R18", "A Driver that falls silent", ("RCT-2.21",), r18.run),

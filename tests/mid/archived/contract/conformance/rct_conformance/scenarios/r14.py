@@ -29,6 +29,17 @@ def request(home: ScenarioHome, part: str) -> dict[str, Any]:
     return value
 
 
+IDENTITY_ROOT = "rct"  # the suite's own Root record (RCT-4), named here independently of the Trunk
+
+
+def identity(home: ScenarioHome, part: str, exchange: str, chat: str, label: str) -> None:
+    """RCT-2.23, TRV-0.14: the agent run of the part carries the selected Root and the accepted chat."""
+    stored = home.rows(f"SELECT chat_id::text AS chat FROM exchanges WHERE id = '{exchange}'")
+    equal(stored, [{"chat": chat}], f"The {label} Exchange's stored chat")
+    sent = request(home, part)
+    equal((sent.get("rootId"), sent.get("chatSessionId")), (IDENTITY_ROOT, chat), f"The {label} request's identity")
+
+
 def snapshot(home: ScenarioHome) -> dict[str, Any]:
     return {table: home.rows(f"SELECT * FROM {table} ORDER BY {order}")
             for table, order in (("chats", "id"), ("exchanges", "id"), ("messages", "exchange_id, position"),
@@ -58,10 +69,12 @@ def run(home: ScenarioHome) -> None:
     home.part("earlier")
     earlier = home.start("earlier message")
     chat = finish(home, earlier)["chat"]
+    identity(home, "earlier", earlier.exchange, chat, "first message, which named no chat,")
     home.part("original")
     first = home.start("send this again", request={"chat": chat})
     first_answer = finish(home, first)
     original_request = request(home, "original")
+    identity(home, "original", first.exchange, chat, "named chat")
     old = home.rows(f"SELECT * FROM exchanges WHERE id = '{first.exchange}'")[0]
     old_runs = home.rows(f"SELECT * FROM runs WHERE exchange_id = '{first.exchange}' ORDER BY run_id")
     check(old_runs, "The original Exchange has no usage to preserve.")
@@ -79,6 +92,7 @@ def run(home: ScenarioHome) -> None:
     equal(home.rows(f"SELECT * FROM runs WHERE exchange_id = '{first.exchange}' ORDER BY run_id"), old_runs,
           "Old usage preserved")
     new_request = request(home, "replacement")
+    identity(home, "replacement", second.exchange, chat, "replacement, which named no chat,")
     equal(new_request["input"], original_request["input"], "The replacement's Driver input")
     equal(new_request["history"], original_request["history"], "The history after the old answer is discarded")
     check(new_request["history"], "The replacement discarded earlier Exchanges too.")
