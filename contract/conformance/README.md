@@ -1,5 +1,7 @@
 # Root Contract conformance
 
+This retained mid-tier suite uses the historical layout-1 Root Contract fixture. Use it with a Build that supports that contract and installation layout. Layout-2 single-installation qualification is recorded separately in AFL-5 and AFL-13.
+
 One program checks a Trunk Build against the Root Contract ([RCT-4](https://github.com/sylvan-stack/arbol-root-artifacts/blob/main/contract/04-conformance.md)). It starts the Build's own program as `arbol-root` and a person would, in a home folder of its own with a Root record for the test, a stand-in that plays a Driver from a script, and a PostgreSQL server of its own with a database made from `contract/<version>/layout.sql`. It judges only what the Trunk prints, its exit status, the Exchange folder, the tables read with `psql`, and what the stand-in received. It needs no network, no account and no quota.
 
 The suite is typed Python on Python 3.14 that uses only the standard library. It needs PostgreSQL's programs `initdb`, `pg_ctl`, `createdb` and `psql` on the search path; without them it ends with 2 and names the missing ones. From the repository's folder:
